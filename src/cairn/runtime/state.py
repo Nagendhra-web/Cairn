@@ -38,6 +38,7 @@ class NodeState:
     started_at: float | None = None
     ended_at: float | None = None
     waiting_on: str | None = None
+    control: Label = BOTTOM
 
 
 @dataclass
@@ -122,6 +123,8 @@ def apply(st: RunState, ev: Event) -> None:  # noqa: C901 - a flat dispatch is c
         ns.output = Labeled(d.get("output"), Label.from_dict(d.get("label")))
         ns.error = None
         ns.ended_at = ev.ts
+        if "control" in d:
+            ns.control = Label.from_dict(d["control"])
     elif t == EventType.NODE_FAILED:
         ns = st.node(ev.node_id or "")
         ns.error = d.get("error")
@@ -132,6 +135,8 @@ def apply(st: RunState, ev: Event) -> None:  # noqa: C901 - a flat dispatch is c
         ns = st.node(ev.node_id or "")
         ns.status = "skipped"
         ns.ended_at = ev.ts
+        if "control" in d:
+            ns.control = Label.from_dict(d["control"])
     elif t == EventType.NODE_WAITING:
         ns = st.node(ev.node_id or "")
         ns.status = "waiting"
