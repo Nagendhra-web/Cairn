@@ -25,6 +25,8 @@ from cairn.core.ids import stable_hash
 from cairn.models.types import estimate_tokens
 from cairn.provenance.labels import BOTTOM, Label, join_all
 
+_MARKER = "\n[... truncated to fit context budget]"
+
 
 @dataclass
 class Section:
@@ -91,9 +93,12 @@ class ContextBuilder:
             if total() <= self.budget_tokens:
                 break
             overflow = total() - self.budget_tokens
-            room = victim.tokens - overflow
-            if room > max(victim.min_tokens, 50):
-                victim.text = victim.text[: room * 4].rsplit("\n", 1)[0] + "\n[... truncated to fit context budget]"
+            room = victim.tokens - overflow - estimate_tokens(_MARKER)
+            if room > max(victim.min_tokens, 8):
+                cut = victim.text[: room * 4]
+                if "\n" in cut:
+                    cut = cut.rsplit("\n", 1)[0]
+                victim.text = cut + _MARKER
                 truncated.append(victim.name)
             else:
                 kept.remove(victim)

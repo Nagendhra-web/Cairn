@@ -5,7 +5,7 @@ from __future__ import annotations
 import inspect
 import re
 from collections.abc import Callable, Iterable
-from typing import Any, get_type_hints
+from typing import Any, get_type_hints, overload
 
 from pydantic import TypeAdapter, create_model
 
@@ -69,6 +69,30 @@ def schema_from_function(fn: Callable[..., Any]) -> tuple[dict[str, Any], dict[s
     return schema, output_schema, wants_context
 
 
+@overload
+def tool(fn: ToolFn) -> ToolSpec: ...
+
+
+@overload
+def tool(
+    fn: None = None,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    effects: Iterable[str] = (),
+    sensitive: Iterable[str] = (),
+    output_trust: OutputTrust | str = OutputTrust.INHERIT,
+    output_secrecy: Iterable[str] = (),
+    allowed_secrecy: Iterable[str] = (),
+    secrets: Iterable[str] = (),
+    requires_approval: bool = False,
+    timeout_s: float = 60.0,
+    idempotent: bool = False,
+    tags: Iterable[str] = (),
+    version: str = "1",
+) -> Callable[[ToolFn], ToolSpec]: ...
+
+
 def tool(
     fn: ToolFn | None = None,
     *,
@@ -85,7 +109,7 @@ def tool(
     idempotent: bool = False,
     tags: Iterable[str] = (),
     version: str = "1",
-) -> Any:
+) -> ToolSpec | Callable[[ToolFn], ToolSpec]:
     """Turn a typed function into a tool.
 
     Example::

@@ -52,10 +52,22 @@ def extract_triples(text: str) -> list[tuple[str, str, str]]:
     for sentence in re.split(r"(?<=[.!?])\s+", text):
         for relation, pattern in _RELATIONS:
             for match in pattern.finditer(sentence):
-                subj, obj = match.group(1).strip(), match.group(2).strip()
-                if subj.lower() != obj.lower() and subj.split()[0] not in {"The", "A", "An", "It", "This"}:
+                subj, obj = _clean(match.group(1)), _clean(match.group(2))
+                if subj and obj and subj.lower() != obj.lower():
                     out.append((subj, relation, obj))
     return out
+
+
+_ARTICLES = ("The ", "A ", "An ")
+_PRONOUNS = {"It", "This", "That", "They", "These", "Those", "He", "She", "We"}
+
+
+def _clean(entity: str) -> str:
+    entity = entity.strip().rstrip(".,;:!?")
+    for article in _ARTICLES:
+        if entity.startswith(article):
+            entity = entity[len(article):]
+    return "" if entity in _PRONOUNS or not entity else entity
 
 
 class KnowledgeGraph:

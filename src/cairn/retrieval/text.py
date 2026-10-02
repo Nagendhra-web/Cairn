@@ -8,10 +8,15 @@ from dataclasses import dataclass
 _TOKEN = re.compile(r"[a-z0-9]+(?:['_-][a-z0-9]+)*")
 
 STOPWORDS = frozenset(
-    """a an and are as at be by for from has have in is it its of on or that the to was were
-    will with what which who whom how when where why this these those do does did can could
-    should would i you he she we they me my your our their them his her not no but if then
-    than so such into about over under any all each other some more most very just also""".split()
+    [
+     "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "have", "in", "is", "it",
+     "its", "of", "on", "or", "that", "the", "to", "was", "were", "will", "with", "what", "which",
+     "who", "whom", "how", "when", "where", "why", "this", "these", "those", "do", "does", "did",
+     "can", "could", "should", "would", "i", "you", "he", "she", "we", "they", "me", "my", "your",
+     "our", "their", "them", "his", "her", "not", "no", "but", "if", "then", "than", "so", "such",
+     "into", "about", "over", "under", "any", "all", "each", "other", "some", "more", "most", "very",
+     "just", "also",
+    ]
 )
 
 

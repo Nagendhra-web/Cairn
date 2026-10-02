@@ -91,7 +91,7 @@ def fold(run_id: str, events: list[Event], state: RunState | None = None) -> Run
     return st
 
 
-def apply(st: RunState, ev: Event) -> None:  # noqa: C901 - a flat dispatch is clearest here
+def apply(st: RunState, ev: Event) -> None:
     d = ev.data
     t = ev.type
     st.last_seq = ev.seq

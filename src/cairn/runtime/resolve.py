@@ -93,7 +93,9 @@ def to_text(value: Any) -> str:
         return value
     if value is None:
         return ""
-    return json.dumps(value, indent=2, ensure_ascii=False, default=str)
+    # Sorted keys make rendering canonical: a value read back from the journal
+    # must render byte-identically to the live value, or replay fingerprints drift.
+    return json.dumps(value, indent=2, ensure_ascii=False, default=str, sort_keys=True)
 
 
 def evaluate(cond: Condition, scope: Scope) -> Labeled:

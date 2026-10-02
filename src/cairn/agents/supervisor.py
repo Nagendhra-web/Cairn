@@ -19,6 +19,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from cairn.agents.agent import AgentSpec
 from cairn.core.errors import PlanValidationError
 from cairn.models.structured import extract_json
 from cairn.models.types import Message, ModelRequest, Tier
@@ -26,8 +27,6 @@ from cairn.provenance.labels import USER
 from cairn.runtime.budget import Budget
 from cairn.runtime.engine import RunResult, Runtime
 from cairn.runtime.plan import AgentNode, LLMNode, Plan, ref
-
-from cairn.agents.agent import AgentSpec
 
 
 class Assignment(BaseModel):

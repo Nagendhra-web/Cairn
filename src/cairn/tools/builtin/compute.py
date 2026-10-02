@@ -111,7 +111,7 @@ async def run_python(code: str, timeout_s: float = 10.0, memory_mb: int = 512) -
             env=safe_env(),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            preexec_fn=_limits(int(timeout_s) + 1, memory_mb),  # noqa: PLW1509
+            preexec_fn=_limits(int(timeout_s) + 1, memory_mb),
         )
         try:
             out, err = await asyncio.wait_for(proc.communicate(), timeout_s)

@@ -226,3 +226,27 @@ async def test_live_token_streaming(runtime, scripted):
     assert not any(e.type == "token" for e in events)  # tokens are ephemeral, not journaled
     assert any(e.type == EventType.EFFECT_COMPLETED for e in events)
 
+
+
+async def test_replay_after_sqlite_roundtrip_is_canonical(tmp_path):
+    """Regression: dict outputs read back from SQLite (sorted keys) must render identically."""
+    from cairn.models import ModelInfo, ModelRouter, ScriptedProvider
+
+    reg = ToolRegistry()
+
+    @tool(name="profile", output_trust="trusted")
+    def profile() -> dict[str, Any]:
+        """Returns a dict whose natural key order is not sorted."""
+        return {"zeta": 1, "alpha": 2, "mid": {"y": 1, "b": 2}}
+
+    reg.register(profile)
+    model = ScriptedProvider(default="described")
+    router = ModelRouter().register(model, ModelInfo(name="m", provider="scripted"))
+    db = tmp_path / "c.db"
+    plan = Plan(goal="g", nodes=[ToolNode(id="p", tool="profile"),
+                                 LLMNode(id="d", prompt="Describe {{p}}")])
+    rt = Runtime(Services(journal=SQLiteJournal(SQLiteDatabase(db)), router=router, tools=reg))
+    result = await rt.run(plan)
+    fresh = Runtime(Services(journal=SQLiteJournal(SQLiteDatabase(db)), router=router, tools=reg))
+    report = await fresh.replay(result.run_id)
+    assert report.matched, report.divergences

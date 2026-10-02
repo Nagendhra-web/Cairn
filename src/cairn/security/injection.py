@@ -13,9 +13,12 @@ import re
 from dataclasses import dataclass
 
 _PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    ("override", re.compile(r"\b(ignore|disregard|forget)\b.{0,40}\b(previous|prior|above|all)\b.{0,20}\b(instructions?|rules|prompts?)\b", re.I | re.S)),
+    ("override", re.compile(
+        r"\b(ignore|disregard|forget)\b.{0,40}\b(previous|prior|above|all)\b.{0,20}"
+        r"\b(instructions?|rules|prompts?)\b", re.I | re.S)),
     ("role-hijack", re.compile(r"\b(you are now|act as|new instructions?|system prompt)\b", re.I)),
-    ("exfiltration", re.compile(r"\b(send|email|forward|post|upload|transmit)\b.{0,60}\b(to|at)\b.{0,40}(@|https?://)", re.I | re.S)),
+    ("exfiltration", re.compile(
+        r"\b(send|email|forward|post|upload|transmit)\b.{0,60}\b(to|at)\b.{0,40}(@|https?://)", re.I | re.S)),
     ("tool-invocation", re.compile(r"\b(call|invoke|run|execute)\b.{0,30}\b(tool|function|command)\b", re.I | re.S)),
     ("secret-request", re.compile(r"\b(api[_ -]?key|password|token|credentials?|secret)\b", re.I)),
     ("hidden-markup", re.compile(r"<!--.*?-->|​|‌|‍|⁠", re.S)),

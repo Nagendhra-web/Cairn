@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 import fnmatch
 import inspect
 import logging
@@ -10,7 +11,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
-from cairn.core.errors import NotFound, ToolArgumentError, ToolError, ToolTimeout
+from cairn.core.errors import CairnError, NotFound, ToolArgumentError, ToolError, ToolTimeout
 from cairn.models.structured import check_schema
 from cairn.retrieval.index import HybridIndex
 from cairn.security.sandbox import NetworkPolicy, PathSandbox
@@ -90,7 +91,7 @@ class ToolRegistry:
     def __contains__(self, name: str) -> bool:
         return name in self._tools and name not in self._quarantined
 
-    def list(self, grants: Iterable[str] = ("*",)) -> list[ToolSpec]:
+    def list(self, grants: Iterable[str] = ("*",)) -> builtins.list[ToolSpec]:
         patterns = list(grants)
         return [
             spec
@@ -111,7 +112,7 @@ class ToolRegistry:
 
     async def discover(
         self, query: str, k: int = 8, grants: Iterable[str] = ("*",)
-    ) -> list[ToolMatch]:
+    ) -> builtins.list[ToolMatch]:
         """Rank granted tools by relevance to a task description.
 
         Planners see only the top matches instead of the full catalog, which
@@ -126,7 +127,7 @@ class ToolRegistry:
         ]
         return out[:k]
 
-    def validate_args(self, spec: ToolSpec, args: dict[str, Any]) -> list[str]:
+    def validate_args(self, spec: ToolSpec, args: dict[str, Any]) -> builtins.list[str]:
         return check_schema(spec.input_schema, args, spec.name)
 
     async def invoke(self, spec: ToolSpec, args: dict[str, Any], ctx: ToolContext) -> Any:
@@ -139,18 +140,16 @@ class ToolRegistry:
         if spec.wants_context:
             kwargs["ctx"] = ctx
         try:
-            if inspect.iscoroutinefunction(spec.fn):
-                coro = spec.fn(**kwargs)
-            else:
-                coro = asyncio.to_thread(spec.fn, **kwargs)
+            is_async = inspect.iscoroutinefunction(spec.fn)
+            coro = spec.fn(**kwargs) if is_async else asyncio.to_thread(spec.fn, **kwargs)
             return await asyncio.wait_for(coro, timeout=spec.timeout_s)
         except TimeoutError as exc:
             raise ToolTimeout(f"tool '{spec.name}' timed out after {spec.timeout_s}s",
                               tool=spec.name) from exc
         except ToolError:
             raise
+        except CairnError:
+            raise  # policy, sandbox and other typed errors keep their identity
         except Exception as exc:
-            if getattr(exc, "code", None):  # CairnError subclasses keep their identity
-                raise
             raise ToolError(f"tool '{spec.name}' failed: {type(exc).__name__}: {exc}",
                             tool=spec.name) from exc

@@ -7,7 +7,8 @@ import json
 from typing import Any
 
 _STATUS = {"completed": "ok", "failed": "FAIL", "skipped": "skip", "waiting": "WAIT",
-           "running": "run", "pending": "...", "ok": "ok", "error": "FAIL"}
+           "running": "run", "pending": "...", "ok": "ok", "error": "FAIL",
+           "interrupted": "INTR"}
 
 
 def render_text(report: dict[str, Any], *, color: bool = False) -> str:

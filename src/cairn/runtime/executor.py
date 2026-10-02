@@ -136,7 +136,7 @@ class Executor:
         sem = asyncio.Semaphore(self.state.budget.max_concurrency)
         running: dict[asyncio.Task[tuple[str, Any]], str] = {}
         fatal: dict[str, Any] | None = None
-        cancel_wait = asyncio.ensure_future(self.cancel.wait())
+        cancel_wait: asyncio.Future[Any] = asyncio.ensure_future(self.cancel.wait())
         try:
             while True:
                 if self.cancel.is_set():
@@ -153,13 +153,13 @@ class Executor:
                             running[task] = node.id
                 if not running:
                     break
-                done, _ = await asyncio.wait(
-                    [*running, cancel_wait], return_when=asyncio.FIRST_COMPLETED
-                )
-                for task in done:
-                    if task is cancel_wait or running.pop(task, None) is None:
-                        continue  # already aborted after an earlier fatal result
-                    outcome, payload = task.result()
+                waitables: list[asyncio.Future[Any]] = [*running, cancel_wait]
+                done, _ = await asyncio.wait(waitables, return_when=asyncio.FIRST_COMPLETED)
+                for finished in done:
+                    node_task = finished if finished in running else None
+                    if node_task is None or running.pop(node_task, None) is None:
+                        continue  # the cancel signal, or a task aborted after a fatal result
+                    outcome, payload = node_task.result()
                     if outcome == "fatal" and fatal is None:
                         fatal = payload
                         await self._abort(running)
@@ -718,7 +718,7 @@ class Executor:
             "show": {k: self.redactor.deep(to_jsonable(v.value)) for k, v in shown.items()},
             "labels": {k: v.label.describe() for k, v in shown.items()},
         }
-        decision = Decision(Verdict.REQUIRE_APPROVAL, "approval-node", subject["message"])
+        decision = Decision(Verdict.REQUIRE_APPROVAL, "approval-node", to_text(message.value))
         await self._require_approval(step, subject, decision)
         label = message.label.join(join_all(v.label for v in shown.values()))
         return Labeled({"approved": True}, label.join(USER))
@@ -901,9 +901,12 @@ def _run_checks(checks: list[Check], value: Labeled, scope: Scope) -> list[str]:
             issues.append(f"output {target!r} != expected {check.value!r}")
         elif t == "json_schema":
             issues.extend(check_schema(dict(check.value or {}), target, "$"))
-        elif t == "condition" and check.condition is not None:
-            if not evaluate(check.condition, scope.child(**{"$last": value})).value:
-                issues.append("condition check failed")
+        elif (
+            t == "condition"
+            and check.condition is not None
+            and not evaluate(check.condition, scope.child(**{"$last": value})).value
+        ):
+            issues.append("condition check failed")
     return issues
 
 

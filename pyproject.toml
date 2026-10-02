@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling>=1.24"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "cairn-runtime"
@@ -46,8 +46,11 @@ Homepage = "https://github.com/nagendhra-web/New-Repo"
 Documentation = "https://github.com/nagendhra-web/New-Repo/tree/main/docs"
 Issues = "https://github.com/nagendhra-web/New-Repo/issues"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/cairn"]
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+cairn = ["py.typed", "api/static/*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -60,7 +63,7 @@ markers = [
 filterwarnings = ["error::RuntimeWarning"]
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 target-version = "py311"
 src = ["src", "tests"]
 
@@ -76,7 +79,10 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S", "B011"]
+"tests/**" = ["S", "B011", "E501"]
+"src/cairn/agents/planner.py" = ["E501"]  # prompt text
+"src/cairn/observability/render.py" = ["E501"]  # HTML template
+"src/cairn/cli/main.py" = ["ASYNC240"]  # small synchronous file IO in a CLI is intentional
 "examples/**" = ["S"]
 "benchmarks/**" = ["S"]
 

@@ -11,6 +11,7 @@ model; nothing else changes.
 from __future__ import annotations
 
 import hashlib
+import itertools
 import math
 from typing import Protocol
 
@@ -39,7 +40,7 @@ class HashingEmbedder:
         vec = [0.0] * self.dim
         words = terms(text)
         features: list[tuple[str, float]] = [(f"w:{w}", 1.0) for w in words]
-        features += [(f"b:{a}_{b}", 0.7) for a, b in zip(words, words[1:], strict=False)]
+        features += [(f"b:{a}_{b}", 0.7) for a, b in itertools.pairwise(words)]
         for word in tokenize(text):
             padded = f"#{word}#"
             features += [(f"c:{padded[i:i + 3]}", 0.3) for i in range(len(padded) - 2)]

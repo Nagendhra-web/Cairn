@@ -20,15 +20,14 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from cairn.agents.critic import Critic, Verdict
+from cairn.agents.planner import Planner, PlanningResult, plan_to_json
 from cairn.core.errors import CairnError, NotFound, PlanValidationError
 from cairn.models.types import Tier
 from cairn.provenance.labels import USER, Label
 from cairn.runtime.budget import Budget
 from cairn.runtime.engine import RunResult, Runtime
 from cairn.runtime.services import SubagentRequest
-
-from cairn.agents.critic import Critic, Verdict
-from cairn.agents.planner import Planner, PlanningResult, plan_to_json
 
 log = logging.getLogger("cairn.agents")
 
@@ -94,7 +93,8 @@ class Agent:
             for proc in (await find(goal, 2)) or []:
                 label = Label.from_dict(proc.get("label"))
                 plan_json = proc.get("plan")
-                text = f"Goal: {proc.get('goal')}\nPlan: {plan_json if isinstance(plan_json, str) else plan_to_json_safe(plan_json)}"
+                rendered = plan_json if isinstance(plan_json, str) else plan_to_json_safe(plan_json)
+                text = f"Goal: {proc.get('goal')}\nPlan: {rendered}"
                 sections.append(("Similar plan that succeeded before", text, 40, label))
         try:
             facts = await self.memory.recall(goal, "semantic", 5)

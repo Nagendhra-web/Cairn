@@ -9,7 +9,6 @@ import pytest
 
 from cairn.core.errors import PlanValidationError
 from cairn.journal import EventType
-from cairn.models import ScriptedProvider
 from cairn.runtime import (
     Budget,
     Check,

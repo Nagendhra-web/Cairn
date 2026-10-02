@@ -27,7 +27,7 @@ def read_file(path: str, ctx: ToolContext, max_bytes: int = 200_000) -> str:
         max_bytes: maximum number of bytes to return
     """
     resolved = _sandbox(ctx).resolve(path)
-    data = resolved.read_bytes()[:max_bytes]
+    data: bytes = resolved.read_bytes()[:max_bytes]
     return data.decode("utf-8", errors="replace")
 
 

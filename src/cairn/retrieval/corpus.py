@@ -8,6 +8,7 @@ corpus's trust level.
 
 from __future__ import annotations
 
+import asyncio
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -61,8 +62,8 @@ class DocumentCorpus:
         if doc_id in self.documents:
             await self.remove(doc_id)
         self.documents[doc_id] = Document(doc_id, text, metadata)
-        items = []
-        chunk_ids = []
+        items: list[tuple[str, str, dict[str, Any] | None]] = []
+        chunk_ids: list[str] = []
         for chunk in chunk_text(text, self.chunk_chars):
             chunk_id = f"{doc_id}#{chunk.index}"
             chunk_ids.append(chunk_id)
@@ -75,10 +76,12 @@ class DocumentCorpus:
 
     async def add_directory(self, path: str | Path, patterns: tuple[str, ...] = ("*.md", "*.txt")) -> int:
         count = 0
+        root = Path(path)
         for pattern in patterns:
-            for file in sorted(Path(path).rglob(pattern)):
-                await self.add(file.read_text(encoding="utf-8", errors="replace"),
-                               doc_id=str(file.relative_to(path)), source=str(file))
+            files = await asyncio.to_thread(lambda p=pattern: sorted(root.rglob(p)))
+            for file in files:
+                text = await asyncio.to_thread(file.read_text, encoding="utf-8", errors="replace")
+                await self.add(text, doc_id=str(file.relative_to(root)), source=str(file))
                 count += 1
         return count
 
@@ -93,9 +96,11 @@ class DocumentCorpus:
     async def search(self, query: str, k: int = 5, mode: str = "hybrid") -> list[dict[str, Any]]:
         if mode == "adaptive":
             result = await AdaptiveRetriever(self).retrieve(query, k)
-            return result["hits"]
+            hits: list[dict[str, Any]] = result["hits"]
+            return hits
         candidates = await self._candidates(query, max(k * 4, 20), mode)
-        return await self.reranker.rerank(query, candidates, k)
+        ranked: list[dict[str, Any]] = await self.reranker.rerank(query, candidates, k)
+        return ranked
 
     async def _candidates(self, query: str, n: int, mode: str) -> list[dict[str, Any]]:
         rankings: dict[str, list[ScoredId]] = {}

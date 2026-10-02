@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cairn Dashboard</title>
+<style>
+:root { --bg:#f7f8fa; --panel:#fff; --fg:#1b2130; --muted:#667085; --line:#e4e7ec; --ok:#2f9e6b; --err:#d64545; --wait:#c98a12; --accent:#3d5afe; }
+@media (prefers-color-scheme: dark) { :root { --bg:#0f1218; --panel:#171b23; --fg:#e7e9ef; --muted:#98a2b3; --line:#2a303b; --accent:#7b8cff; } }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; }
+header { display:flex; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--line); background:var(--panel); flex-wrap:wrap; }
+header h1 { font-size:16px; margin:0; }
+header input { flex:1; min-width:160px; max-width:320px; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); }
+main { display:grid; grid-template-columns: minmax(260px, 380px) 1fr; min-height: calc(100vh - 52px); }
+@media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+#runs { border-right:1px solid var(--line); overflow:auto; }
+.run { padding:10px 16px; border-bottom:1px solid var(--line); cursor:pointer; }
+.run:hover, .run.sel { background:var(--panel); }
+.run .goal { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.meta { color:var(--muted); font-size:12px; }
+.badge { display:inline-block; padding:1px 7px; border-radius:10px; font-size:12px; border:1px solid var(--line); }
+.completed { color:var(--ok); } .failed, .cancelled { color:var(--err); } .suspended, .waiting { color:var(--wait); }
+#detail { padding:16px; overflow:auto; }
+table { border-collapse:collapse; width:100%; background:var(--panel); border:1px solid var(--line); border-radius:8px; }
+td, th { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { color:var(--muted); font-weight:500; font-size:12px; }
+pre { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; overflow:auto; max-height:320px; white-space:pre-wrap; }
+button { padding:5px 12px; border-radius:6px; border:1px solid var(--line); background:var(--panel); color:var(--fg); cursor:pointer; }
+button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+.approval { border:1px solid var(--wait); border-radius:8px; padding:10px; margin:10px 0; background:var(--panel); }
+h2 { font-size:15px; margin:18px 0 8px; }
+.empty { color:var(--muted); padding:24px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cairn</h1>
+  <span class="meta" id="health"></span>
+  <input id="key" type="password" placeholder="API key (stored in this browser only)">
+</header>
+<main>
+  <section id="runs"><div class="empty">Loading runs...</div></section>
+  <section id="detail"><div class="empty">Select a run to inspect its nodes, provenance labels, approvals and live events.</div></section>
+</main>
+<script>
+const keyInput = document.getElementById('key');
+try { keyInput.value = localStorage.getItem('cairn_key') || ''; } catch (e) {}
+keyInput.addEventListener('change', () => { try { localStorage.setItem('cairn_key', keyInput.value); } catch (e) {} refresh(); });
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(path, opts = {}) {
+  const headers = Object.assign({'Content-Type': 'application/json'}, opts.headers || {});
+  if (keyInput.value) headers['Authorization'] = 'Bearer ' + keyInput.value;
+  const r = await fetch(path, Object.assign({}, opts, {headers}));
+  if (!r.ok) throw new Error((await r.text()).slice(0, 300));
+  return r.json();
+}
+let selected = null, source = null;
+async function refresh() {
+  try {
+    const h = await api('/health');
+    document.getElementById('health').textContent = `${h.models.length} models, ${h.tools} tools, ${h.active_runs} active`;
+    const runs = await api('/v1/runs?limit=100');
+    const el = document.getElementById('runs');
+    el.innerHTML = runs.length ? runs.map(r => `
+      <div class="run ${r.run_id === selected ? 'sel' : ''}" data-id="${esc(r.run_id)}">
+        <div class="goal">${esc(r.goal)}</div>
+        <div class="meta"><span class="badge ${esc(r.status)}">${esc(r.status)}</span>
+          ${esc(r.run_id)} ${r.summary.tokens ? ' | ' + r.summary.tokens + ' tok' : ''}</div>
+      </div>`).join('') : '<div class="empty">No runs yet. Start one with the CLI or POST /v1/runs.</div>';
+    el.querySelectorAll('.run').forEach(n => n.onclick = () => select(n.dataset.id));
+  } catch (e) { document.getElementById('runs').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+async function select(id) {
+  selected = id; refresh();
+  const r = await api('/v1/runs/' + id);
+  const approvals = (await api(`/v1/runs/${id}/approvals`)).filter(a => a.status === 'pending');
+  const nodes = Object.entries(r.nodes).map(([nid, n]) => `<tr><td>${esc(nid)}</td>
+    <td class="${esc(n.status)}">${esc(n.status)}</td><td>${n.attempts}</td><td>${esc(n.label || '')}</td>
+    <td>${esc(n.control)}</td><td>${n.tokens || ''}</td><td>${n.duration_ms ?? ''}</td></tr>`).join('');
+  document.getElementById('detail').innerHTML = `
+    <h2>${esc(r.goal)} <span class="badge ${esc(r.status)}">${esc(r.status)}</span></h2>
+    <div class="meta">${esc(r.run_id)} | tokens ${r.usage.tokens} | cost $${r.usage.cost_usd.toFixed(6)} | model calls ${r.usage.model_calls} | tool calls ${r.usage.tool_calls}
+      | <a href="/v1/runs/${esc(id)}/html" target="_blank">timeline</a>
+      <button id="replay">Replay</button></div>
+    ${approvals.map(a => `<div class="approval"><b>Approval needed</b> (node ${esc(a.node_id)}): ${esc(a.reason)}
+      <pre>${esc(JSON.stringify(a.preview, null, 2))}</pre>
+      <button class="primary" data-req="${esc(a.request_id)}" data-ok="1">Approve</button>
+      <button data-req="${esc(a.request_id)}" data-ok="0">Reject</button></div>`).join('')}
+    <h2>Nodes</h2><table><tr><th>node</th><th>status</th><th>attempts</th><th>data label</th><th>control label</th><th>tokens</th><th>ms</th></tr>${nodes}</table>
+    <h2>Output <span class="meta">(${esc(r.output_label)})</span></h2><pre>${esc(typeof r.output === 'string' ? r.output : JSON.stringify(r.output, null, 2))}</pre>
+    ${r.policy_decisions.length ? `<h2>Policy decisions</h2><pre>${esc(JSON.stringify(r.policy_decisions, null, 2))}</pre>` : ''}
+    ${r.error ? `<h2>Error</h2><pre>${esc(JSON.stringify(r.error, null, 2))}</pre>` : ''}
+    <h2>Live events</h2><pre id="events"></pre>`;
+  document.querySelectorAll('[data-req]').forEach(b => b.onclick = async () => {
+    await api(`/v1/runs/${id}/approvals/${b.dataset.req}`, {method: 'POST', body: JSON.stringify({approved: b.dataset.ok === '1'})});
+    setTimeout(() => select(id), 400);
+  });
+  document.getElementById('replay').onclick = async () => {
+    const rep = await api(`/v1/runs/${id}/replay`, {method: 'POST'});
+    alert(`replay matched=${rep.matched}, effects replayed=${rep.effects_replayed}, divergences=${rep.divergences.length}`);
+  };
+  if (source) source.close();
+  if (!keyInput.value) {
+    source = new EventSource(`/v1/runs/${id}/stream`);
+    const out = document.getElementById('events');
+    const add = (m) => { const d = JSON.parse(m.data); out.textContent += (d.kind === 'live' ? d.text : `\n#${d.seq} ${d.type} ${d.node_id || ''}`); out.scrollTop = out.scrollHeight; };
+    source.addEventListener('event', add); source.addEventListener('live', add);
+    source.addEventListener('end', () => { source.close(); refresh(); });
+  }
+}
+refresh(); setInterval(refresh, 5000);
+</script>
+</body>
+</html>

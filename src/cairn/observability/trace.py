@@ -57,6 +57,10 @@ def build_trace(run_id: str, events: list[Event]) -> Span:
             root.attributes["goal"] = d.get("goal")
             root.attributes["agent"] = d.get("agent")
         elif ev.type == EventType.NODE_STARTED and ev.node_id:
+            previous = attempt_spans.get(ev.node_id)
+            if previous is not None and previous.end is None:
+                previous.end = ev.ts
+                previous.status = "interrupted"  # the process died during this attempt
             span = Span(f"{ev.node_id}@{d.get('attempt')}", ev.node_id, "node", ev.ts,
                         parent_id=run_id, attributes={"attempt": d.get("attempt"),
                                                       "strategy": d.get("strategy")})
@@ -65,28 +69,28 @@ def build_trace(run_id: str, events: list[Event]) -> Span:
         elif ev.type in (EventType.EFFECT_COMPLETED, EventType.EFFECT_FAILED) and ev.node_id:
             latency = float(d.get("latency_ms") or 0.0) / 1000
             parent = attempt_spans.get(ev.node_id)
-            attrs = {k: d[k] for k in ("kind", "key", "usage", "cost_usd", "ttft_ms", "tier",
+            attrs: dict[str, Any] = {k: d[k] for k in ("kind", "key", "usage", "cost_usd", "ttft_ms", "tier",
                                         "replayed", "injection_signals") if k in d}
             if d.get("kind") == "model" and isinstance(d.get("result"), dict):
                 attrs["model"] = d["result"].get("model")
             if d.get("kind") == "tool" and isinstance(d.get("request"), dict):
                 attrs["tool"] = d["request"].get("tool")
-            span = Span(d["key"], _effect_name(d), "effect", ev.ts - latency, ev.ts,
+            effect = Span(d["key"], _effect_name(d), "effect", ev.ts - latency, ev.ts,
                         parent_id=parent.span_id if parent else run_id,
                         status="error" if ev.type == EventType.EFFECT_FAILED else "ok",
                         attributes=attrs)
-            (parent.children if parent else root.children).append(span)
+            (parent.children if parent else root.children).append(effect)
         elif ev.type in (EventType.NODE_COMPLETED, EventType.NODE_FAILED, EventType.NODE_WAITING,
                          EventType.NODE_SKIPPED) and ev.node_id:
-            span = attempt_spans.get(ev.node_id)
-            if span is not None and span.end is None:
-                span.end = ev.ts
-                span.status = {
+            current = attempt_spans.get(ev.node_id)
+            if current is not None and current.end is None:
+                current.end = ev.ts
+                current.status = {
                     EventType.NODE_COMPLETED: "ok", EventType.NODE_FAILED: "error",
                     EventType.NODE_WAITING: "waiting", EventType.NODE_SKIPPED: "skipped",
                 }[EventType(ev.type)]
                 if ev.type == EventType.NODE_FAILED:
-                    span.attributes["error"] = d.get("error")
+                    current.attributes["error"] = d.get("error")
         elif ev.type in (EventType.RUN_COMPLETED, EventType.RUN_FAILED, EventType.RUN_CANCELLED,
                          EventType.RUN_SUSPENDED):
             root.end = ev.ts
@@ -145,7 +149,8 @@ def run_report(run_id: str, events: list[Event]) -> dict[str, Any]:
             retries.append({"node_id": ev.node_id, "attempt": d.get("attempt"), "reason": d.get("reason"),
                             "delay_s": d.get("delay_s")})
         elif ev.type == EventType.VERIFY_RESULT:
-            verifications.append({"node_id": ev.node_id, **{k: d.get(k) for k in ("target", "round", "passed", "issues")}})
+            fields = ("target", "round", "passed", "issues")
+            verifications.append({"node_id": ev.node_id, **{k: d.get(k) for k in fields}})
         elif ev.type == EventType.EFFECT_DIVERGED:
             divergences.append({"node_id": ev.node_id, "key": d.get("key")})
     duration = (state.ended_at - state.started_at) if state.started_at and state.ended_at else None

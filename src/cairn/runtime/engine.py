@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass, field, replace
@@ -195,13 +196,11 @@ class Runtime:
         summary["nodes"] = {nid: ns.status for nid, ns in state.nodes.items()}
         if state.started_at and state.ended_at:
             summary["duration_s"] = round(state.ended_at - state.started_at, 4)
-        try:
+        with contextlib.suppress(NotFound):
             await self.journal.update_run(
                 state.run_id, status=state.status, updated_at=self.services.clock.now(),
                 summary=summary,
             )
-        except NotFound:
-            pass
 
     # ----------------------------------------------------------- human control
 

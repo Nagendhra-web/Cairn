@@ -14,6 +14,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from cairn.agents.context import BuiltContext, ContextBuilder, render_catalog
 from cairn.core.errors import PlanValidationError
 from cairn.models.router import ModelRouter
 from cairn.models.structured import extract_json
@@ -22,8 +23,6 @@ from cairn.provenance.labels import USER, Label
 from cairn.runtime.plan import Plan
 from cairn.runtime.validate import validate_plan
 from cairn.tools.registry import ToolRegistry
-
-from cairn.agents.context import BuiltContext, ContextBuilder, render_catalog
 
 PLAN_FORMAT = """\
 Return ONLY a JSON object: {"goal": str, "nodes": [node, ...], "output": value}.
