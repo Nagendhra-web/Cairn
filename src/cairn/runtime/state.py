@@ -105,6 +105,11 @@ def apply(st: RunState, ev: Event) -> None:
         st.depth = int(d.get("depth", 0))
         st.agent = d.get("agent")
         st.parent_run_id = d.get("parent_run_id")
+        planning = (d.get("planning") or {}).get("usage")
+        if planning:
+            # Planner calls happen before the run exists; charge them to the run so
+            # budgets and reports include the cost of deciding what to do.
+            st.usage.add_planning(planning)
         for node in st.plan.nodes:
             st.nodes.setdefault(node.id, NodeState())
     elif t == EventType.RUN_STARTED:

@@ -81,6 +81,21 @@ class Usage:
         entry["output_tokens"] += out
         entry["cost_usd"] += cost or 0.0
 
+    def add_planning(self, usage: dict[str, Any]) -> None:
+        calls = int(usage.get("calls", 0))
+        inp, out = int(usage.get("input_tokens", 0)), int(usage.get("output_tokens", 0))
+        self.model_calls += calls
+        self.input_tokens += inp
+        self.output_tokens += out
+        self.cost_usd += float(usage.get("cost_usd") or 0.0)
+        entry = self.by_model.setdefault(
+            "planner", {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+        )
+        entry["calls"] += calls
+        entry["input_tokens"] += inp
+        entry["output_tokens"] += out
+        entry["cost_usd"] += float(usage.get("cost_usd") or 0.0)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "input_tokens": self.input_tokens,

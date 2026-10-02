@@ -146,3 +146,12 @@ def test_supervisor_rejects_unknown_agents(runtime):
 def test_label_roundtrip():
     lbl = untrusted("x").with_secrecy("pii")
     assert Label.from_dict(lbl.to_dict()) == lbl
+
+
+async def test_planner_usage_counts_toward_run_usage(runtime, scripted):
+    scripted.on("## Goal", GOOD)
+    agent = Agent(AgentSpec(name="t", tools=["add"]), runtime)
+    result = await agent.run("add numbers")
+    state = await runtime.load(result.run_id)
+    assert state.usage.by_model["planner"]["calls"] == 1
+    assert state.usage.model_calls == 1  # the plan itself made no model calls

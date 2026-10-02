@@ -364,7 +364,6 @@ Known limitations:
 
 - Storage backends ship for SQLite only (a shared file in WAL mode works for several workers on one host). Postgres backends are on the [roadmap](ROADMAP.md).
 - `code.python` uses process-level isolation and resource limits; it does not block network access. Run inside a container without network for untrusted code.
-- Planner calls happen before a run is created; their usage is recorded in the run's metadata but not counted against the run budget.
 - The built-in embedder is not semantic. Configure an embedding model for semantic retrieval.
 - Speech input and native model tool-calling nodes are not implemented yet.
 
