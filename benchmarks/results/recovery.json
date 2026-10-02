@@ -1,0 +1,132 @@
+{
+  "benchmark": "recovery",
+  "config": {
+    "repeats": 5
+  },
+  "created_at": "2026-10-02T15:35:18Z",
+  "environment": {
+    "cpu_count": 4,
+    "git_commit": "3e74817bf39fec26a4dd3172f81d9de1c2e5a0bb",
+    "git_dirty": true,
+    "implementation": "CPython",
+    "machine": "x86_64",
+    "platform": "Linux-6.18.44-fc-v51-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "python": "3.11.15"
+  },
+  "overall_recovery_rate_where_expected": 1.0,
+  "scenarios": [
+    {
+      "expected_success": false,
+      "fault_count": 1,
+      "mean_extra_attempts": 0.0,
+      "mean_recovered_nodes": 0.0,
+      "repeats": 5,
+      "scenario": "tool_no_retry_1fault",
+      "statuses": [
+        "failed",
+        "failed",
+        "failed",
+        "failed",
+        "failed"
+      ],
+      "success_rate": 0.0
+    },
+    {
+      "expected_success": true,
+      "fault_count": 2,
+      "mean_extra_attempts": 2.0,
+      "mean_recovered_nodes": 1.0,
+      "repeats": 5,
+      "scenario": "tool_retry_2faults",
+      "statuses": [
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "success_rate": 1.0
+    },
+    {
+      "expected_success": false,
+      "fault_count": 5,
+      "mean_extra_attempts": 3.0,
+      "mean_recovered_nodes": 0.0,
+      "repeats": 5,
+      "scenario": "tool_retry_exhausted_5faults",
+      "statuses": [
+        "failed",
+        "failed",
+        "failed",
+        "failed",
+        "failed"
+      ],
+      "success_rate": 0.0
+    },
+    {
+      "expected_success": true,
+      "fault_count": 1,
+      "mean_extra_attempts": 0.0,
+      "mean_recovered_nodes": 0.0,
+      "repeats": 5,
+      "scenario": "tool_default_1fault",
+      "statuses": [
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "success_rate": 1.0
+    },
+    {
+      "expected_success": false,
+      "fault_count": 1,
+      "mean_extra_attempts": 0.0,
+      "mean_recovered_nodes": 0.0,
+      "repeats": 5,
+      "scenario": "model_no_retry_1fault",
+      "statuses": [
+        "failed",
+        "failed",
+        "failed",
+        "failed",
+        "failed"
+      ],
+      "success_rate": 0.0
+    },
+    {
+      "expected_success": true,
+      "fault_count": 2,
+      "mean_extra_attempts": 2.0,
+      "mean_recovered_nodes": 1.0,
+      "repeats": 5,
+      "scenario": "model_retry_2faults",
+      "statuses": [
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "success_rate": 1.0
+    },
+    {
+      "expected_success": true,
+      "fault_count": 1,
+      "mean_extra_attempts": 1.0,
+      "mean_recovered_nodes": 1.0,
+      "repeats": 5,
+      "scenario": "model_fallback_1fault",
+      "statuses": [
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed"
+      ],
+      "success_rate": 1.0
+    }
+  ]
+}

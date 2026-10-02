@@ -1,0 +1,15 @@
+name: Security hardening idea (not a vulnerability)
+description: Suggest a new policy rule, sandbox improvement or threat-model clarification. Report vulnerabilities privately (see SECURITY.md).
+labels: ["security", "enhancement"]
+body:
+  - type: textarea
+    id: scenario
+    attributes:
+      label: Attack scenario
+      description: Who is the attacker, what do they control (web page, document, MCP server, email), and what should they be unable to cause?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed defense

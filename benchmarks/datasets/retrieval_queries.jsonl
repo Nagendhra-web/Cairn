@@ -1,0 +1,31 @@
+{"dataset": "retrieval-queries", "version": "1.0.0", "description": "Paraphrased queries with graded relevance labels (2=primary, 1=related)."}
+{"id": "q01", "relevant": {"d01": 2, "d04": 1}, "text": "how does a database avoid scanning every page to find a record"}
+{"id": "q02", "relevant": {"d02": 2, "d23": 1}, "text": "recovering data after a crash by replaying changes"}
+{"id": "q03", "relevant": {"d03": 2}, "text": "letting readers see a stable snapshot while writers proceed"}
+{"id": "q04", "relevant": {"d01": 1, "d04": 2}, "text": "choosing the cheapest join order"}
+{"id": "q05", "relevant": {"d05": 2, "d10": 1}, "text": "spreading table rows across many machines"}
+{"id": "q06", "relevant": {"d06": 2, "d40": 1}, "text": "sharing a network link without overwhelming it"}
+{"id": "q07", "relevant": {"d07": 2}, "text": "translating a hostname into a numeric address"}
+{"id": "q08", "relevant": {"d08": 2, "d13": 1}, "text": "agreeing on encryption and verifying the server identity"}
+{"id": "q09", "relevant": {"d09": 2, "d34": 1}, "text": "reusing a response without asking the origin again"}
+{"id": "q10", "relevant": {"d05": 1, "d10": 2}, "text": "distributing connections over a pool of machines"}
+{"id": "q11", "relevant": {"d11": 2, "d15": 1}, "text": "encrypting so only the private key holder can read"}
+{"id": "q12", "relevant": {"d12": 2}, "text": "a digest where collisions are infeasible"}
+{"id": "q13", "relevant": {"d11": 1, "d13": 2}, "text": "proving a message was not tampered with and who sent it"}
+{"id": "q14", "relevant": {"d11": 1, "d14": 2}, "text": "encrypting fixed chunks under one shared key"}
+{"id": "q15", "relevant": {"d11": 1, "d15": 2}, "text": "deriving a shared secret over an open channel"}
+{"id": "q16", "relevant": {"d16": 2, "d17": 1}, "text": "nudging weights to reduce error during training"}
+{"id": "q17", "relevant": {"d16": 1, "d17": 2}, "text": "a model that memorizes and fails on unseen data"}
+{"id": "q18", "relevant": {"d18": 2, "d19": 1}, "text": "reusing small filters to spot a feature anywhere in a picture"}
+{"id": "q19", "relevant": {"d19": 2, "d20": 1}, "text": "weighing every token by relevance to relate distant words"}
+{"id": "q20", "relevant": {"d19": 1, "d20": 2}, "text": "dense vectors that place similar words together"}
+{"id": "q21", "relevant": {"d21": 2, "d25": 1}, "text": "giving each process its own address space and paging to disk"}
+{"id": "q22", "relevant": {"d22": 2, "d24": 1}, "text": "deciding which ready task runs next"}
+{"id": "q23", "relevant": {"d21": 1, "d23": 2}, "text": "tracking which disk blocks belong to each file"}
+{"id": "q24", "relevant": {"d24": 2, "d30": 1}, "text": "two processes stuck each holding what the other needs"}
+{"id": "q25", "relevant": {"d25": 1, "d26": 2}, "text": "reclaiming memory the program can no longer reach"}
+{"id": "q26", "relevant": {"d27": 2}, "text": "catching type mistakes before the program runs"}
+{"id": "q27", "relevant": {"d28": 2, "d29": 1}, "text": "a function that remembers variables from where it was created"}
+{"id": "q28", "relevant": {"d24": 1, "d30": 2}, "text": "coordinating threads so shared data has no races"}
+{"id": "q29", "relevant": {"d31": 1, "d32": 2}, "text": "pushing server updates over a persistent two-way channel"}
+{"id": "q30", "relevant": {"d38": 2, "d39": 1}, "text": "safely retrying an operation after an uncertain failure"}

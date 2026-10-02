@@ -1,0 +1,57 @@
+{
+  "benchmark": "retrieval_quality",
+  "by_mode": {
+    "dense": {
+      "mrr": 0.961111111111111,
+      "ndcg_at_5": 0.8346229786254485,
+      "queries": 30,
+      "recall_at_5": 0.7333333333333333
+    },
+    "hybrid": {
+      "mrr": 1.0,
+      "ndcg_at_5": 0.8726323552970421,
+      "queries": 30,
+      "recall_at_5": 0.7666666666666667
+    },
+    "lexical": {
+      "mrr": 1.0,
+      "ndcg_at_5": 0.88172971913872,
+      "queries": 30,
+      "recall_at_5": 0.7833333333333333
+    }
+  },
+  "config": {
+    "corpus": {
+      "hash": "f23b641f05e0b7058d9e4a53dbeb8cd69537bc9bfa5ce6a77f2c062d5cbafafe",
+      "name": "retrieval-corpus",
+      "path": "benchmarks/datasets/retrieval_corpus.jsonl",
+      "rows": 40,
+      "version": "1.0.0"
+    },
+    "embedder": "hashing-512",
+    "k": 5,
+    "modes": [
+      "lexical",
+      "dense",
+      "hybrid"
+    ],
+    "queries": {
+      "hash": "cb1ca7638460377be4ab23903baf5102789f2e1e584278a5c93bd921769d0085",
+      "name": "retrieval-queries",
+      "path": "benchmarks/datasets/retrieval_queries.jsonl",
+      "rows": 30,
+      "version": "1.0.0"
+    }
+  },
+  "created_at": "2026-10-02T15:35:17Z",
+  "environment": {
+    "cpu_count": 4,
+    "git_commit": "3e74817bf39fec26a4dd3172f81d9de1c2e5a0bb",
+    "git_dirty": true,
+    "implementation": "CPython",
+    "machine": "x86_64",
+    "platform": "Linux-6.18.44-fc-v51-x86_64-with-glibc2.39",
+    "processor": "x86_64",
+    "python": "3.11.15"
+  }
+}

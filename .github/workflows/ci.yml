@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  style:
+    name: Lint, types, repository rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev,anthropic]"
+      - name: No em dashes anywhere in the repository
+        run: python scripts/check_no_em_dash.py
+      - name: Ruff
+        run: ruff check src tests examples benchmarks scripts
+      - name: Mypy (strict)
+        run: MYPYPATH=src python -m mypy --explicit-package-bases src/cairn
+
+  test:
+    name: Tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: pip install -e ".[dev,anthropic]"
+      - name: Unit tests
+        run: pytest tests/unit -q
+      - name: Integration tests
+        run: pytest tests/integration -q -m integration
+      - name: End-to-end tests
+        run: pytest tests/e2e -q -m e2e
+      - name: Offline demos
+        run: cairn demo all > /dev/null
+
+  examples:
+    name: Examples and benchmarks smoke run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev,anthropic]"
+      - name: Run offline examples
+        run: python scripts/run_examples.py
+      - name: Evaluation smoke test
+        run: python benchmarks/injection_suite.py && python benchmarks/recovery.py
+
+  security:
+    name: Security checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -e ".[dev]" pip-audit
+      - name: Static security rules (ruff bandit set)
+        run: ruff check src --select S
+      - name: Dependency vulnerability audit
+        run: pip-audit --skip-editable
+      - name: Provenance and sandbox test suite
+        run: pytest tests/integration/test_security.py -q

@@ -1,0 +1,41 @@
+{"dataset": "retrieval-corpus", "version": "1.0.0", "description": "Hand-written short technical documents for retrieval evaluation."}
+{"id": "d01", "text": "A B-tree keeps keys sorted so a database can find a row with a logarithmic number of disk reads instead of scanning every page.", "title": "B-tree indexes"}
+{"id": "d02", "text": "Durability comes from recording each change in a log before the data pages are updated, so a crash can be recovered by replaying the log.", "title": "Write-ahead logging"}
+{"id": "d03", "text": "Multiversion concurrency control lets readers see a consistent snapshot while writers create new row versions, avoiding read-write locks.", "title": "MVCC"}
+{"id": "d04", "text": "A cost-based optimizer estimates how many rows each operator emits and picks the join order with the cheapest predicted total cost.", "title": "Query planners"}
+{"id": "d05", "text": "Splitting rows across many machines by a partition key spreads load, at the cost of expensive queries that must touch several partitions.", "title": "Sharding"}
+{"id": "d06", "text": "By slowly increasing the sending window and backing off when packets are lost, endpoints share a link without collapsing it.", "title": "TCP congestion control"}
+{"id": "d07", "text": "Turning a hostname into an address walks a hierarchy of name servers, caching answers along the way to cut latency.", "title": "DNS resolution"}
+{"id": "d08", "text": "Before encrypting traffic the two sides agree on a cipher and exchange keys, authenticating the server with a certificate.", "title": "TLS handshake"}
+{"id": "d09", "text": "Response headers tell intermediaries how long a document may be reused, so repeat requests can be answered without contacting the origin.", "title": "HTTP caching"}
+{"id": "d10", "text": "Spreading incoming connections across a pool of servers keeps any single machine from being overwhelmed and allows rolling restarts.", "title": "Load balancing"}
+{"id": "d11", "text": "A keypair lets anyone encrypt with the public half while only the holder of the private half can decrypt, removing shared secrets.", "title": "Public key cryptography"}
+{"id": "d12", "text": "A good digest maps any input to a fixed-size value such that finding two inputs with the same output is computationally infeasible.", "title": "Hash functions"}
+{"id": "d13", "text": "Signing a message with a private key lets others verify, with the matching public key, that it was not altered and who produced it.", "title": "Digital signatures"}
+{"id": "d14", "text": "Block ciphers transform fixed-size chunks under a shared key; a mode of operation chains blocks so identical plaintext differs.", "title": "Symmetric ciphers"}
+{"id": "d15", "text": "Two parties can derive a shared secret over a public channel so an eavesdropper who sees every message still cannot compute the key.", "title": "Key exchange"}
+{"id": "d16", "text": "Training nudges parameters in the direction that most reduces the loss, taking steps proportional to a learning rate.", "title": "Gradient descent"}
+{"id": "d17", "text": "A model that memorizes its training set performs poorly on new data; regularization and more examples push it to generalize.", "title": "Overfitting"}
+{"id": "d18", "text": "Sharing small filters across an image detects the same feature anywhere, drastically cutting parameters versus dense layers.", "title": "Convolutional networks"}
+{"id": "d19", "text": "Instead of a fixed window, each position weighs every other position by relevance, letting a model relate distant tokens.", "title": "Attention mechanism"}
+{"id": "d20", "text": "Mapping words to dense vectors places similar meanings near each other, so arithmetic on the vectors captures analogies.", "title": "Word embeddings"}
+{"id": "d21", "text": "The operating system gives each process its own address space, paging rarely used memory to disk and mapping pages on demand.", "title": "Virtual memory"}
+{"id": "d22", "text": "A scheduler decides which ready task runs next, balancing responsiveness for interactive jobs against throughput for batch work.", "title": "Process scheduling"}
+{"id": "d23", "text": "Metadata structures track which disk blocks hold each file and keep directories, while journaling guards against corruption on crash.", "title": "File systems"}
+{"id": "d24", "text": "When processes each hold a resource the other needs and refuse to release, none can proceed; detection or ordered acquisition avoids it.", "title": "Deadlock"}
+{"id": "d25", "text": "A heap allocator carves blocks from a large region and tracks free space, trading fragmentation against speed of reuse.", "title": "Memory allocation"}
+{"id": "d26", "text": "A managed runtime reclaims memory no longer reachable from the program, freeing developers from manual deallocation.", "title": "Garbage collection"}
+{"id": "d27", "text": "Checking the kinds of values a program manipulates before it runs catches whole classes of mistakes without a single test case.", "title": "Type systems"}
+{"id": "d28", "text": "A function that captures variables from the scope where it was defined carries that environment with it wherever it is later called.", "title": "Closures"}
+{"id": "d29", "text": "A routine that calls itself on a smaller input solves problems defined in terms of themselves, provided a base case stops the descent.", "title": "Recursion"}
+{"id": "d30", "text": "Locks, semaphores and channels coordinate threads so shared state is updated without races and work is handed off safely.", "title": "Concurrency primitives"}
+{"id": "d31", "text": "Exposing resources behind predictable URLs and standard verbs lets clients and servers evolve independently over plain HTTP.", "title": "REST APIs"}
+{"id": "d32", "text": "Upgrading an HTTP connection to a persistent, two-way channel lets a server push updates without the client polling repeatedly.", "title": "WebSockets"}
+{"id": "d33", "text": "The engine parses markup into a tree, computes styles and layout, then paints pixels, re-running the steps when the page changes.", "title": "Browser rendering"}
+{"id": "d34", "text": "Copying assets to servers near users cuts distance and load on the origin, so pages load faster worldwide.", "title": "Content delivery networks"}
+{"id": "d35", "text": "If a site renders attacker-supplied text as markup, injected script runs with the victim's session; escaping output prevents it.", "title": "Cross-site scripting"}
+{"id": "d36", "text": "Packaging an application with its dependencies in an isolated namespace makes it run the same on a laptop and in production.", "title": "Containers"}
+{"id": "d37", "text": "Placing work on a durable queue lets producers and consumers run at different rates and survive one side being temporarily down.", "title": "Message queues"}
+{"id": "d38", "text": "An operation that can be applied many times with the same effect as once lets a client safely retry after an uncertain failure.", "title": "Idempotency"}
+{"id": "d39", "text": "Replicas that accept writes independently converge to the same state over time, trading immediate agreement for availability.", "title": "Eventual consistency"}
+{"id": "d40", "text": "Capping how many requests a client may make in a window protects a service from overload and abusive traffic.", "title": "Rate limiting"}

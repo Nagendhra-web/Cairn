@@ -1,0 +1,28 @@
+name: Feature request
+description: Propose a capability or an extension point
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to build, and what does Cairn make hard today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed design
+      description: |
+        How should it work? Please consider how it interacts with the journal (is it an effect
+        that must be replayable?) and with provenance labels (what label does its output carry?).
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I would like to implement this and can open a pull request.

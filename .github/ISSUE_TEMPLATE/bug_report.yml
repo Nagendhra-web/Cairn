@@ -1,0 +1,42 @@
+name: Bug report
+description: Something in the runtime, CLI, API or docs does not behave as documented
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The fastest way to a fix is a run we can replay:
+        `cairn show <run_id> --json` and `cairn events <run_id> --json` contain the full,
+        secret-redacted journal. Please review it before attaching.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Expected behavior versus actual behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal plan JSON, script, or CLI commands. Offline (scripted model) reproductions are ideal.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: journal
+    attributes:
+      label: Journal excerpt or run report (optional)
+      render: json
+  - type: input
+    id: version
+    attributes:
+      label: Cairn version and Python version
+      placeholder: "cairn 0.1.0, Python 3.12"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [runtime, provenance and policy, models and routing, tools, MCP, memory, retrieval, agents, evaluation, API, CLI, workers, docs]
