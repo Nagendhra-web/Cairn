@@ -102,6 +102,8 @@ class Supervisor:
         problems = []
         ids = {t.id for t in delegation.tasks}
         for task in delegation.tasks:
+            if task.id == "synthesis":
+                problems.append("task id 'synthesis' is reserved for the final synthesis node")
             if task.agent not in self.specialists:
                 problems.append(f"task '{task.id}' assigned to unknown agent '{task.agent}'")
             for dep in task.depends_on:

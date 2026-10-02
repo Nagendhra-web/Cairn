@@ -24,7 +24,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from cairn.core.errors import (
     ApprovalRequired,
@@ -108,6 +108,12 @@ def create_app(cairn: Any, *, api_keys: list[str] | None = None) -> FastAPI:
             raise HTTPException(429, "rate limit exceeded")
         return identity
 
+    @app.exception_handler(ValidationError)
+    async def validation_error(_: Request, exc: ValidationError) -> JSONResponse:
+        problems = [f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()[:20]]
+        return JSONResponse({"error": {"code": "invalid_request", "message": "request failed validation",
+                                       "details": {"problems": problems}}}, status_code=422)
+
     @app.exception_handler(CairnError)
     async def cairn_error(_: Request, exc: CairnError) -> JSONResponse:
         status = next((code for cls, code in _STATUS.items() if isinstance(exc, cls)), 400)
@@ -128,7 +134,11 @@ def create_app(cairn: Any, *, api_keys: list[str] | None = None) -> FastAPI:
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
-        return {"status": "ok", "models": [m.name for m in cairn.router.models],
+        return {"status": "ok"}  # unauthenticated: reveals nothing about the deployment
+
+    @app.get("/v1/info")
+    async def info(_: str = Depends(authenticate)) -> dict[str, Any]:
+        return {"models": [m.name for m in cairn.router.models],
                 "tools": len(cairn.tools.list()), "active_runs": len(tasks)}
 
     @app.get("/v1/runs")
@@ -142,7 +152,8 @@ def create_app(cairn: Any, *, api_keys: list[str] | None = None) -> FastAPI:
             raise HTTPException(422, "provide exactly one of 'goal' or 'plan'")
         if body.plan is not None:
             plan = Plan.model_validate(body.plan)
-            run_id = await rt.create_run(plan, inputs=body.inputs, budget=cairn.budget())
+            run_id = await rt.create_run(plan, inputs=body.inputs, budget=cairn.budget(),
+                                         grants=cairn.grants())
             spawn(rt.execute(run_id))
             return {"run_id": run_id, "status": "accepted"}
         cairn._require_models()
@@ -203,8 +214,16 @@ def create_app(cairn: Any, *, api_keys: list[str] | None = None) -> FastAPI:
 
     @app.websocket("/v1/runs/{run_id}/ws")
     async def ws(websocket: WebSocket, run_id: str) -> None:
-        if keys and websocket.query_params.get("key") not in keys:
+        client = websocket.client.host if websocket.client else "unknown"
+        key = websocket.query_params.get("key", "")
+        if keys and key not in keys:
             await websocket.close(code=4401)
+            return
+        if not keys and client not in ("127.0.0.1", "::1", "localhost", "testclient"):
+            await websocket.close(code=4403)
+            return
+        if not limiter.try_acquire(f"key:{keys.index(key)}" if keys else f"ip:{client}"):
+            await websocket.close(code=4429)
             return
         await websocket.accept()
         try:

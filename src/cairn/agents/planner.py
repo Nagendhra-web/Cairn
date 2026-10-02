@@ -148,6 +148,8 @@ class Planner:
             usage["input_tokens"] += response.usage.input_tokens
             usage["output_tokens"] += response.usage.output_tokens
             usage["cost_usd"] += response.cost_usd or 0.0
+            if response.cost_usd is None:
+                usage["unpriced_calls"] = usage.get("unpriced_calls", 0) + 1
             try:
                 data = extract_json(response.text)
                 if isinstance(data, dict):

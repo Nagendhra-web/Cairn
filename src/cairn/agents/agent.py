@@ -232,7 +232,8 @@ class Agent:
             + (f"; review issues: {'; '.join(verdict.issues)}" if verdict and verdict.issues else "")
         )
         try:
-            await record(goal=goal, outcome=outcome, status=result.status, run_id=result.run_id,
+            status = "succeeded" if result.status == "completed" and not (verdict and not verdict.passed) else "failed"
+            await record(goal=goal, outcome=outcome, status=status, run_id=result.run_id,
                          label=Label.from_dict(result.label))
         except Exception:
             log.exception("failed to record episode")

@@ -3,8 +3,9 @@
 ``comms.send_email`` delivers through a pluggable transport found in
 ``ToolContext.services["mail_transport"]``. Without one it writes to an
 in-memory/outbox list (``services["outbox"]``) so examples and tests can
-observe exactly what an agent tried to send. Recipients and bodies are
-sensitive sinks.
+observe exactly what an agent tried to send. The recipient is the sensitive
+sink; bodies may carry untrusted content, and secrecy-tagged bodies are still
+blocked by the egress rule because the tool declares the ``send`` effect.
 """
 
 from __future__ import annotations

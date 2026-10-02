@@ -14,6 +14,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from cairn.core.errors import PlanValidationError
+from cairn.models.structured import check_schema
 from cairn.runtime.plan import (
     NODE_ID_RE,
     SPECIAL_ROOTS,
@@ -80,7 +81,11 @@ def validate_plan(
 
         for tool_name, tool_args, where in _tools_used(node):
             if tools is not None and tool_name not in tools:
-                problems.append(f"node '{node.id}' uses unknown tool '{tool_name}'{where}")
+                reason = tools.quarantined().get(tool_name)
+                if reason is not None:
+                    problems.append(f"node '{node.id}' uses quarantined tool '{tool_name}'{where}: {reason}")
+                else:
+                    problems.append(f"node '{node.id}' uses unknown tool '{tool_name}'{where}")
                 continue
             if not any(fnmatch.fnmatchcase(tool_name, g) for g in grants):
                 problems.append(f"node '{node.id}' uses tool '{tool_name}' which is not granted")
@@ -192,10 +197,23 @@ def _check_tool_args(
     for required in spec.input_schema.get("required", []):
         if required not in args:
             problems.append(f"node '{node_id}': tool '{tool_name}' requires argument '{required}'")
-    for name in args:
+    for name, value in args.items():
         if name not in props:
             problems.append(f"node '{node_id}': tool '{tool_name}' has no parameter '{name}'")
+        elif not collect_refs(value) and not _has_template(value):
+            # Literal values can be type-checked now instead of failing mid-run.
+            problems.extend(
+                f"node '{node_id}': {p}" for p in check_schema(props[name], value, f"{tool_name}.{name}")
+            )
     return problems
+
+
+def _has_template(value: Any) -> bool:
+    if isinstance(value, dict):
+        return (set(value) in ({"$ref"}, {"$tmpl"})) or any(_has_template(v) for v in value.values())
+    if isinstance(value, list):
+        return any(_has_template(v) for v in value)
+    return False
 
 
 def _attenuates(pattern: str, grants: list[str]) -> bool:

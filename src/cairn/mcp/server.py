@@ -49,7 +49,9 @@ from cairn.mcp.jsonrpc import (
     encode_message,
     parse_message,
 )
-from cairn.provenance.policy import PRIVILEGED_EFFECTS
+from cairn.provenance.labels import untrusted
+from cairn.provenance.policy import PRIVILEGED_EFFECTS, FlowRequest, PolicyEngine, Verdict
+from cairn.security.sandbox import NetworkPolicy, PathSandbox
 from cairn.security.secrets import SecretVault
 from cairn.tools.registry import ToolContext, ToolRegistry
 from cairn.tools.spec import ToolSpec
@@ -60,6 +62,8 @@ Writer = Callable[[bytes], Awaitable[None]]
 _DESTRUCTIVE = frozenset({"write", "delete", "payment", "execute"})
 _OPEN_WORLD = frozenset({"network", "send"})
 
+
+_ALLOW_ALL = PolicyEngine(enabled=False)
 
 class MCPServer:
     """An MCP server backed by a :class:`ToolRegistry`."""
@@ -73,6 +77,9 @@ class MCPServer:
         expose: Sequence[str] = ("*",),
         allow_privileged: bool = False,
         vault: SecretVault | None = None,
+        sandbox: PathSandbox | None = None,
+        network: NetworkPolicy | None = None,
+        policy: PolicyEngine | None = None,
         instructions: str | None = None,
         page_size: int = 100,
         max_message_bytes: int = DEFAULT_MAX_MESSAGE_BYTES,
@@ -85,6 +92,12 @@ class MCPServer:
         self.expose = list(expose)
         self.allow_privileged = allow_privileged
         self.vault = vault or SecretVault()
+        self.sandbox = sandbox
+        self.network = network
+        # MCP clients are external agents: their arguments are untrusted and nobody is
+        # available to approve, so anything needing approval is denied (strict mode).
+        # allow_privileged means the operator explicitly trusts this client.
+        self.policy = policy or (None if allow_privileged else PolicyEngine(strict=True))
         self.instructions = instructions
         self.page_size = page_size
         self.max_message_bytes = max_message_bytes
@@ -173,12 +186,28 @@ class MCPServer:
         if not isinstance(arguments, dict):
             raise JSONRPCError(INVALID_PARAMS, "'arguments' must be an object")
         spec = self._resolve(name)
+        redactor = self.vault.redactor()
+        source = f"mcp-client:{self.client_info.get('name', 'unknown')}"
+        decision = (self.policy or _ALLOW_ALL).evaluate(FlowRequest(
+            tool=spec.name,
+            effects=spec.effects,
+            args=arguments,
+            arg_labels={k: untrusted(source) for k in arguments},
+            control=untrusted(source),
+            sensitive_params=spec.sensitive_params,
+            allowed_secrecy=spec.allowed_secrecy,
+            requires_approval=spec.requires_approval,
+            agent=source,
+        ))
+        if decision.verdict is not Verdict.ALLOW:
+            return _error_result(f"denied by policy ({decision.rule}): {decision.reason}")
         ctx = ToolContext(
             run_id=self.session_id,
             node_id=f"call_{request_id}",
             secrets=self.vault.scope(spec.secrets),
+            sandbox=self.sandbox,
+            network=self.network,
         )
-        redactor = self.vault.redactor()
         try:
             value = await self.registry.invoke(spec, arguments, ctx)
         except ToolArgumentError as exc:

@@ -16,7 +16,7 @@ does here) but "does the runtime stop the action anyway?". That is Cairn's
 thesis: provenance labels and flow policy block untrusted data from steering
 privileged actions even against a hijacked model.
 
-Each case is executed under four settings:
+Each case is executed under three settings:
 
 * ``policy_on``   - provenance policy enabled, approvals auto-rejected.
 * ``policy_strict`` - strict mode: no human available, approvals become denials.

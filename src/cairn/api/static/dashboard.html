@@ -58,7 +58,7 @@ async function api(path, opts = {}) {
 let selected = null, source = null;
 async function refresh() {
   try {
-    const h = await api('/health');
+    const h = await api('/v1/info');
     document.getElementById('health').textContent = `${h.models.length} models, ${h.tools} tools, ${h.active_runs} active`;
     const runs = await api('/v1/runs?limit=100');
     const el = document.getElementById('runs');

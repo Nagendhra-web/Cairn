@@ -4,7 +4,7 @@ SQLite is the default because it gives durable, transactional storage with
 zero setup, and WAL mode lets several worker processes share one database
 file. Subsystems (journal, memory, queue) register their own migrations under
 a namespace so they can evolve independently. A Postgres backend can implement
-the same store protocols; see ``docs/storage.md``.
+the same store protocols (planned, see ROADMAP.md).
 """
 
 from __future__ import annotations

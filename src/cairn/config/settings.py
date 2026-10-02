@@ -13,7 +13,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from cairn.core.errors import ConfigError
 from cairn.models.types import Tier
@@ -47,6 +47,11 @@ class CollectionConfig(BaseModel):
 
 
 class MCPServerEntry(BaseModel):
+    """Passed through to ``cairn.mcp.MCPServerConfig``, which validates the extra fields
+    (pinned, effects_override, sensitive_params, requires_approval, timeouts...)."""
+
+    model_config = ConfigDict(extra="allow")
+
     name: str
     command: str
     args: list[str] = Field(default_factory=list)

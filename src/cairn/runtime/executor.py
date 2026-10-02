@@ -61,7 +61,7 @@ from cairn.runtime.plan import (
 from cairn.runtime.recorder import EffectOutcome, Mode, Recorder
 from cairn.runtime.resolve import Scope, evaluate, render, resolve, to_text
 from cairn.runtime.services import ApprovalRequest, Services, SubagentRequest
-from cairn.runtime.state import RunState
+from cairn.runtime.state import RunState, apply
 from cairn.runtime.validate import topological_order
 from cairn.security.injection import scan
 from cairn.tools.registry import ToolContext
@@ -121,6 +121,15 @@ class Executor:
         self.cancel = cancel or asyncio.Event()
         self.redactor = services.vault.redactor()
         self._retried_waiting: set[str] = set()
+        self.poll_interval_s = 0.5
+        self._last_poll = 0.0
+
+    async def _poll_external(self) -> None:
+        """Fold events appended by other processes (for example a cancel request)."""
+        for ev in await self.rec.journal.read(self.state.run_id, self.state.last_seq):
+            apply(self.state, ev)
+            if ev.type == EventType.RUN_CANCELLED:
+                self.cancel.set()
 
     @property
     def plan(self) -> Plan:
@@ -139,9 +148,10 @@ class Executor:
         cancel_wait: asyncio.Future[Any] = asyncio.ensure_future(self.cancel.wait())
         try:
             while True:
-                if self.cancel.is_set():
+                if self.cancel.is_set() or self.state.status == "cancelled":
                     await self._abort(running)
-                    await self.rec.emit(EventType.RUN_CANCELLED, reason="cancel requested")
+                    if self.state.status != "cancelled":
+                        await self.rec.emit(EventType.RUN_CANCELLED, reason="cancel requested")
                     return
                 if fatal is None:
                     for node in self.plan.nodes:
@@ -154,7 +164,15 @@ class Executor:
                 if not running:
                     break
                 waitables: list[asyncio.Future[Any]] = [*running, cancel_wait]
-                done, _ = await asyncio.wait(waitables, return_when=asyncio.FIRST_COMPLETED)
+                done, _ = await asyncio.wait(
+                    waitables, return_when=asyncio.FIRST_COMPLETED, timeout=self.poll_interval_s
+                )
+                now = asyncio.get_running_loop().time()
+                if not done or now - self._last_poll >= self.poll_interval_s:
+                    self._last_poll = now
+                    await self._poll_external()
+                if not done:
+                    continue
                 for finished in done:
                     node_task = finished if finished in running else None
                     if node_task is None or running.pop(node_task, None) is None:
@@ -291,6 +309,7 @@ class Executor:
                 out = await (asyncio.wait_for(coro, node.timeout_s) if node.timeout_s else coro)
             except ApprovalRequired as exc:
                 await self.rec.emit(EventType.NODE_WAITING, node.id, request_id=exc.request_id)
+                self._retried_waiting.add(node.id)  # do not relaunch it again this session
                 return "waiting", None
             except (BudgetExceeded, ReplayDivergence, RunCancelled, asyncio.CancelledError):
                 raise
@@ -806,7 +825,10 @@ class Executor:
 
     async def _body(self, body: ToolNode | LLMNode, step: Step) -> Labeled:
         if isinstance(body, ToolNode):
-            return await self._tool(step, body.tool, body.args)
+            strategy = step.strategy
+            tool = strategy.tool if strategy and strategy.tool else body.tool
+            args = strategy.args if strategy and strategy.args is not None else body.args
+            return await self._tool(step, tool, args)
         return await self._llm(step, body)
 
     async def _map(self, step: Step, node: MapNode) -> Labeled:

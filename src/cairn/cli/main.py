@@ -39,9 +39,14 @@ def _print(data: Any, as_json: bool) -> None:
 
 async def _app(args: argparse.Namespace, **kwargs: Any) -> Any:
     from cairn.config import load_config
+    from cairn.observability import configure_logging
     from cairn.sdk import Cairn
 
-    return await Cairn.create(load_config(getattr(args, "config", None)), **kwargs)
+    config = load_config(getattr(args, "config", None))
+    if not os.environ.get("CAIRN_LOG_LEVEL"):
+        configure_logging(config.log_level if config.log_level != "INFO" else "WARNING",
+                          json_logs=config.json_logs or bool(os.environ.get("CAIRN_JSON_LOGS")))
+    return await Cairn.create(config, **kwargs)
 
 
 def _color() -> bool:
@@ -207,6 +212,21 @@ async def cmd_exec(args: argparse.Namespace) -> int:
         else:
             print(app.render(await app.report(result.run_id), color=_color()))
         return 0 if result.status in ("completed", "suspended") else 1
+    finally:
+        await app.close()
+
+
+@command("submit")
+async def cmd_submit(args: argparse.Namespace) -> int:
+    from cairn.runtime import Plan
+
+    app = await _app(args, mount_mcp=False)
+    try:
+        plan = Plan.model_validate_json(Path(args.plan).read_text("utf-8"))
+        inputs = dict(kv.split("=", 1) for kv in args.input or [])
+        run_id, job_id = await app.submit(plan, inputs=inputs)
+        print(f"queued run {run_id} as job {job_id}; start workers with: cairn worker")
+        return 0
     finally:
         await app.close()
 
@@ -441,7 +461,8 @@ async def cmd_mcp_serve(args: argparse.Namespace) -> int:
     app = await _app(args, mount_mcp=False)
     try:
         server = MCPServer(app.tools, expose=tuple(args.expose or ["*"]),
-                           allow_privileged=args.allow_privileged, vault=app.runtime.services.vault)
+                           allow_privileged=args.allow_privileged, vault=app.runtime.services.vault,
+                           sandbox=app.runtime.services.sandbox, network=app.runtime.services.network)
         await server.serve_stdio()
         return 0
     finally:
@@ -509,6 +530,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--input", action="append", help="key=value run input")
     s.add_argument("--interactive", "-i", action="store_true")
     s.add_argument("--json", action="store_true")
+    s = sub.add_parser("submit", help="enqueue a plan JSON file for background workers")
+    s.add_argument("plan")
+    s.add_argument("--input", action="append", help="key=value run input")
     for name, helptext in (("resume", "resume a suspended or interrupted run"), ("cancel", "cancel a run")):
         s = sub.add_parser(name, help=helptext)
         s.add_argument("run_id")

@@ -237,7 +237,11 @@ def write_jsonl(
     rows: Sequence[dict[str, Any] | BaseModel],
     **header: Any,
 ) -> str:
-    """Write a dataset with a header record; returns the content hash."""
+    """Write a dataset with a header record.
+
+    Returns the raw-row content hash, equal to ``load_jsonl(path).hash``. A parsed
+    :func:`load_dataset` hash can differ because validation fills in defaults.
+    """
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     data = [r.model_dump(mode="json") if isinstance(r, BaseModel) else r for r in rows]

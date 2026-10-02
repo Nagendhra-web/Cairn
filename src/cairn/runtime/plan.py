@@ -237,9 +237,9 @@ def collect_refs(value: Any) -> set[str]:
 
     def walk(v: Any) -> None:
         if isinstance(v, dict):
-            if "$ref" in v and isinstance(v["$ref"], str):
+            if set(v) == {"$ref"} and isinstance(v["$ref"], str):
                 roots.add(_root(v["$ref"]))
-            elif "$tmpl" in v and isinstance(v["$tmpl"], str):
+            elif set(v) == {"$tmpl"} and isinstance(v["$tmpl"], str):
                 roots.update(_root(m) for m in REF_RE.findall(v["$tmpl"]))
             else:
                 for item in v.values():

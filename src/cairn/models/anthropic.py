@@ -16,6 +16,8 @@ from cairn.models.types import Message, ModelRequest, ModelResponse, Usage
 
 DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"
 _FALLBACK_BETA = "server-side-fallback-2026-07-01"
+# Models documented to accept the server-side ``fallbacks="default"`` parameter.
+_FALLBACK_MODELS = ("claude-fable-5", "claude-opus-5", "claude-sonnet-5-5")
 
 
 class AnthropicProvider:
@@ -67,7 +69,7 @@ class AnthropicProvider:
             output_config["format"] = {"type": "json_schema", "schema": req.response_schema}
         if output_config:
             params["output_config"] = output_config
-        if self.server_fallback:
+        if self.server_fallback and model.startswith(_FALLBACK_MODELS):
             params["betas"] = [_FALLBACK_BETA]
             params["fallbacks"] = "default"
         return params

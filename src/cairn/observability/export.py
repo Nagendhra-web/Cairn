@@ -36,7 +36,7 @@ def to_otlp(root: Span, service_name: str = "cairn") -> dict[str, Any]:
             "kind": 1,
             "startTimeUnixNano": str(int(span.start * 1e9)),
             "endTimeUnixNano": str(int(end * 1e9)),
-            "status": {"code": 2 if span.status == "error" else 1},
+            "status": {"code": 2 if span.status in ("error", "failed", "cancelled", "interrupted") else 1},
             "attributes": [
                 {"key": f"cairn.{k}", "value": {"stringValue": json.dumps(v, default=str)
                                                 if not isinstance(v, str) else v}}

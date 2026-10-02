@@ -1,9 +1,10 @@
 """Cost-aware model router with fallback, circuit breaking and rate limits.
 
 Selection rule: among registered endpoints that satisfy the request's
-capability needs (vision, audio, json...), prefer the requested tier, then the
-nearest tier *above* it (never silently downgrade), then cheaper price, then
-local endpoints. If the chosen endpoint fails with a retryable error or its
+capability needs (vision, audio, json...), prefer the requested tier, then
+tiers *above* it, and only then lower tiers as a last resort; within a tier,
+cheaper and local endpoints come first. A downgrade is never silent: the
+journaled route decision records every candidate tried. If the chosen endpoint fails with a retryable error or its
 circuit is open, the router falls through to the next candidate. Every
 decision is returned as a :class:`RouteDecision` so it can be journaled and
 inspected.

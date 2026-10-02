@@ -88,6 +88,7 @@ class Usage:
         self.input_tokens += inp
         self.output_tokens += out
         self.cost_usd += float(usage.get("cost_usd") or 0.0)
+        self.unpriced_calls += int(usage.get("unpriced_calls", 0))
         entry = self.by_model.setdefault(
             "planner", {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
         )

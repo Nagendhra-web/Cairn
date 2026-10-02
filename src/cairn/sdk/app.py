@@ -114,7 +114,7 @@ class Cairn:
             tools=registry,
             policy=PolicyEngine(strict=config.policy.strict, enabled=config.policy.enabled),
             vault=vault or SecretVault.from_env(),
-            sandbox=PathSandbox(roots, read_only=config.security.sandbox_read_only),
+            sandbox=PathSandbox(roots, read_only=config.security.sandbox_read_only) if roots else None,
             network=NetworkPolicy(config.security.network_allow,
                                   allow_private=config.security.allow_private_network),
             memory=memory,
@@ -160,6 +160,10 @@ class Cairn:
         self._mcp.append(report)
         return report
 
+    def grants(self) -> list[str]:
+        """Tool patterns runs may use: configured tools plus mounted MCP servers."""
+        return [*self.config.tools, *(f"{s.name}.*" for s in self.config.mcp_servers)]
+
     def budget(self) -> Budget:
         return Budget(**self.config.budget.model_dump())
 
@@ -179,6 +183,13 @@ class Cairn:
     async def run(self, plan: Plan, **kwargs: Any) -> RunResult:
         kwargs.setdefault("budget", self.budget())
         return await self.runtime.run(plan, **kwargs)
+
+    async def submit(self, plan: Plan, **kwargs: Any) -> tuple[str, str]:
+        """Create a run and enqueue it for background workers; returns (run_id, job_id)."""
+        from cairn.workers import SQLiteWorkQueue, submit_run
+
+        kwargs.setdefault("budget", self.budget())
+        return await submit_run(self.runtime, SQLiteWorkQueue(self.db), plan, **kwargs)
 
     def supervisor(self, specialists: list[AgentSpec]) -> Supervisor:
         self._require_models()
