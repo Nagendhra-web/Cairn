@@ -27,7 +27,7 @@ Handled by provenance labels and the flow policy, not by detection: untrusted da
 
 Layers applied to every tool call:
 
-1. **Capability grants.** A run has a list of grant patterns (`fnmatch`). Validation rejects plans that use ungranted tools; the `capability` policy rule rejects them again at call time. Grants come from `AgentSpec.tools` for agent runs (the SDK uses `config.tools`), from the `grants` argument of `Runtime.create_run` (default `("*")`), and from a node's `tools` for sub-agents.
+1. **Capability grants.** A run has a list of grant patterns (`fnmatch`). Validation rejects plans that use ungranted tools; the `capability` policy rule rejects them again at call time. Grants come from `AgentSpec.tools` for agent runs, from `Cairn.grants()` (`config.tools`, plus `<server>.*` per configured MCP server, plus tools registered in code with `register_tool` or `Cairn.create(tools=...)`) for the SDK's default agent, `Cairn.run`, `cairn exec`, `Cairn.submit`, `cairn submit` and plans submitted over the HTTP API, from the `grants` argument when calling `Runtime.create_run` directly (default `("*",)`), and from a node's `tools` for sub-agents.
 2. **Contracts.** `ToolRegistry.invoke` validates arguments against the tool's input schema before calling it (`tool_arguments_invalid`, non-retryable). Each tool declares its effects, sensitive parameters, output trust and secrets (see [tools-and-mcp.md](tools-and-mcp.md)).
 3. **Policy.** Every call is evaluated and the decision journaled before execution.
 4. **Approvals.** Bound to the exact call: the request id hashes the node, tool, (redacted) arguments, argument labels and effects, so approving one call does not approve a different one.
@@ -61,7 +61,7 @@ Limits:
 
 ## Filesystem sandbox
 
-`PathSandbox(roots, read_only=False)` (`security/sandbox.py`), configured by `security.sandbox_roots` (default `["./workspace"]`, created at startup) and `security.sandbox_read_only`.
+`PathSandbox(roots, read_only=False)` (`security/sandbox.py`), configured by `security.sandbox_roots` (default `["./workspace"]`, created at startup; an empty list configures no sandbox, so `fs.*` tools refuse to run) and `security.sandbox_read_only`.
 
 * Relative paths resolve against the first root; absolute paths are allowed if they resolve inside some root.
 * Paths are fully resolved (symlinks included) before the containment check, so `../` traversal and symlinks pointing outside a root are rejected (`sandbox_violation`).
@@ -119,13 +119,12 @@ Related: tool timeouts use `asyncio.wait_for`. A synchronous tool runs in a work
 
 Limits:
 
-* `cairn.toml` `[[mcp_servers]]` entries accept only `name`, `command`, `args`, `env`, `trust` and `allowed_tools`; other keys (`pinned`, `effects_override`, `sensitive_params`, `requires_approval`, `quarantine_unpinned`, timeouts) are silently ignored. Use `Cairn.mount_mcp({...})` or `mount_mcp_server` in Python to set them.
 * Pins are checked at mount time. A server that changes its tools later sends `notifications/tools/list_changed`, which only sets `MCPClient.tools_changed`; nothing re-lists or re-verifies automatically, and calls are made by tool name.
 * The server process is not sandboxed beyond its environment: it can use the network and filesystem with the user's privileges.
 
 ### Exposing Cairn as an MCP server
 
-`cairn mcp-serve` / `MCPServer` exposes only tools matching `--expose` globs and, unless `--allow-privileged`, withholds tools with privileged effects or `requires_approval`. Each call gets a secret scope limited to the tool's declared secrets and responses are redacted. Calls through the MCP server bypass the provenance policy and the journal: the MCP client is the decision maker. The server passes no sandbox or network policy to tools, so `fs.*` and `http.*` tools are listed but fail with `filesystem tools require a configured sandbox root` / `network tools require a configured NetworkPolicy allowlist`.
+`cairn mcp-serve` / `MCPServer` exposes only tools matching `--expose` globs and, unless `--allow-privileged`, withholds tools with privileged effects or `requires_approval`. An MCP client is an external agent whose inputs Cairn cannot label and who cannot answer approval requests, so by default every call is evaluated with `PolicyEngine(strict=True)` with all arguments and the control flow labeled `untrusted("mcp-client:<client name>")`: anything that would need approval, such as any value for a sensitive parameter (`http.fetch` `url`), is denied with an `isError` result `denied by policy (<rule>): <reason>`. With `--allow-privileged` no provenance policy is applied (the operator trusts the client); a custom `policy=` replaces either behavior. Tools receive the app's sandbox and network policy, each call gets a secret scope limited to the tool's declared secrets, and responses are redacted. Calls are not journaled. See [tools-and-mcp.md](tools-and-mcp.md#serving-tools-over-mcp-server-side).
 
 ## Resource exhaustion
 
@@ -154,14 +153,14 @@ Other bounds: `map.max_items` (default 100) and `max_parallel` (4), `loop.max_it
 * With no keys configured, only clients whose address is `127.0.0.1`, `::1`, `localhost` or `testclient` are accepted (403 otherwise).
 * Every identity (`key:<index>` or `ip:<address>`) has a token bucket of `api.requests_per_second` (default 5) with burst `api.burst` (default 20); excess requests get 429.
 
-Gaps to account for in deployment:
+* `GET /health` (returns only `{"status": "ok"}`) and `GET /` (the static dashboard page) are unauthenticated; deployment details are behind the authenticated `GET /v1/info`.
+* The WebSocket endpoint applies the same key, loopback and rate-limit rules, signaled with close codes 4401, 4403 and 4429. Its key travels in the query string (`?key=`), which can end up in proxy logs.
 
-* `GET /health` and `GET /` (dashboard HTML) are not authenticated; `/health` reveals model names, the tool count and the number of active runs.
-* The WebSocket endpoint checks `?key=` only when keys are configured, is not rate limited, and when no keys are configured it accepts any client address (no loopback check). Keys in query strings can end up in proxy logs.
+Gaps to account for in deployment:
 * Behind a reverse proxy on the same host every client appears as `127.0.0.1`, which defeats the loopback-only default. Always configure keys behind a proxy.
 * Key comparison is a plain list membership test, not constant time.
 * Any authenticated client can approve any pending request (there is no separation between the client that started a run and the approver), and the recorded approver is the key index.
-* A plan submitted with `POST /v1/runs` runs with grants `["*"]`: it may call every registered tool. Goal-based runs use the agent's `tools` (default `config.tools`). Register only tools you are willing to expose.
+* A plan submitted with `POST /v1/runs` runs with `Cairn.grants()`: every tool matching `config.tools` or a configured MCP server's `<name>.*`. Goal-based runs use the agent's `tools` (default `config.tools`, overridable per request through the `agent` field). Keep `tools` to what API clients may use.
 * No TLS termination is built in; put the API behind a TLS proxy.
 
 ## Journal tamper evidence
@@ -176,13 +175,14 @@ Events are hash-chained per run (see [durability.md](durability.md#hash-chain));
 
 * [ ] Run Cairn in a container or VM without network egress except what `network_allow` needs; mount only the sandbox roots writable.
 * [ ] Keep `code.python` out of `tools` unless needed; if needed, isolate the host as above and keep approvals on.
-* [ ] Set `CAIRN_API_KEYS` (or your `api_keys_env`) and terminate TLS in front of the API; do not rely on the loopback default behind a proxy; do not expose `/v1/runs/{id}/ws` publicly.
+* [ ] Set `CAIRN_API_KEYS` (or your `api_keys_env`) and terminate TLS in front of the API; do not rely on the loopback default behind a proxy.
 * [ ] Keep `policy.enabled = true`. Use `policy.strict = true` for unattended workers and batch jobs.
 * [ ] Keep `allow_private_network = false`; keep `network_allow` minimal and specific (avoid `*`).
 * [ ] Review every custom tool's `effects`, `sensitive` parameters, `output_trust`, `secrets` and `output_secrecy`; mark recipients, paths, URLs, commands, payees and amounts sensitive.
 * [ ] Give agents least-privilege `tools` patterns; avoid `*`.
 * [ ] Provide secrets only through `CAIRN_SECRET_*` or a `SecretVault`, never in plans, inputs or `cairn.toml`.
-* [ ] Mount MCP servers as `untrusted`, set `allowed_tools`, `effects_override`, `sensitive_params` and `requires_approval` in code, pin fingerprints with `pin_report`, and set `quarantine_unpinned=True` after the first review.
+* [ ] Mount MCP servers as `untrusted`, set `allowed_tools`, `effects_override`, `sensitive_params` and `requires_approval` (in `cairn.toml` or code), pin fingerprints with `pin_report` and record them in `pinned`, and set `quarantine_unpinned = true` after the first review.
+* [ ] Serve tools over MCP only without `--allow-privileged` unless you fully trust the client.
 * [ ] Set explicit budgets, including `max_cost_usd`, and configure model prices so cost limits work.
 * [ ] Keep `isolate_untrusted_context = true` for agents.
 * [ ] Periodically run `cairn verify` on important runs and store their final hashes outside the database.

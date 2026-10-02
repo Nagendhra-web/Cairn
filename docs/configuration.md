@@ -20,7 +20,7 @@ Configuration is a TOML file plus environment variables, validated up front by p
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `data_dir` | string | `".cairn"` | Directory of `cairn.db` (journal, memory, job queue). Env `CAIRN_DATA_DIR` |
-| `tools` | list of globs | `["math.*", "fs.*", "http.fetch", "comms.*"]` | Built-in tools to register, and the default agent's grants |
+| `tools` | list of globs | `["math.*", "fs.*", "http.fetch", "comms.*"]` | Built-in tools to register; also the base of `Cairn.grants()` (default grants of the SDK agent, `Cairn.run`, `submit` and API plans) |
 | `models` | array of tables | `[]` | See `[[models]]` |
 | `collections` | array of tables | `[]` | See `[[collections]]` |
 | `mcp_servers` | array of tables | `[]` | See `[[mcp_servers]]` |
@@ -29,8 +29,8 @@ Configuration is a TOML file plus environment variables, validated up front by p
 | `budget` | table | see below | |
 | `api` | table | see below | |
 | `memory_enabled` | bool | `true` | Create the SQLite-backed `MemoryManager` |
-| `log_level` | string | `"INFO"` | Env `CAIRN_LOG_LEVEL`. Stored but not applied by the CLI or SDK (see [observability.md](observability.md#logging)) |
-| `json_logs` | bool | `false` | Stored but not applied |
+| `log_level` | string | `"WARNING"` | Applied by the CLI when `CAIRN_LOG_LEVEL` is unset (see [observability.md](observability.md#logging)). The SDK does not configure logging |
+| `json_logs` | bool | `false` | JSON log lines in the CLI (also enabled by `CAIRN_JSON_LOGS`) when `CAIRN_LOG_LEVEL` is unset |
 
 Unknown keys are ignored.
 
@@ -68,7 +68,9 @@ Unknown keys are ignored.
 | `trust` | `"trusted"` or `"untrusted"` | `"untrusted"` |
 | `allowed_tools` | list of globs | `["*"]` |
 
-Other MCP options (`pinned`, `effects_override`, `sensitive_params`, `requires_approval`, `quarantine_unpinned`, `cwd`, timeouts, `max_description_chars`) are not read from the file; set them through `Cairn.mount_mcp` in code (see [tools-and-mcp.md](tools-and-mcp.md#mounting-mcp-servers-client-side)).
+`MCPServerEntry` accepts extra keys and passes every key through to `MCPServerConfig` at mount time, so all of its options work from the file: `cwd`, `effects_override`, `sensitive_params`, `pinned`, `quarantine_unpinned`, `requires_approval`, `timeout_s`, `startup_timeout_s`, `max_description_chars` (see [tools-and-mcp.md](tools-and-mcp.md#mcpserverconfig)). `load_config` does not check those extra keys; `MCPServerConfig` forbids unknown keys, so a misspelled option fails when `Cairn.create` mounts the server, with a pydantic `ValidationError` naming the field.
+
+Each configured server also adds the grant pattern `<name>.*` to `Cairn.grants()`, used for plan runs submitted over the HTTP API. The default agent (`Cairn.agent()`, `cairn run`) is granted only `tools`; add `"<name>.*"` to `tools` to let agents use a server's tools.
 
 ## `[policy]` (`PolicyConfig`)
 
@@ -81,7 +83,7 @@ Other MCP options (`pinned`, `effects_override`, `sensitive_params`, `requires_a
 
 | Key | Type | Default | Meaning |
 |---|---|---|---|
-| `sandbox_roots` | list | `["./workspace"]` | Filesystem roots for `fs.*` tools; created at startup; the first root resolves relative paths |
+| `sandbox_roots` | list | `["./workspace"]` | Filesystem roots for `fs.*` tools; created at startup; the first root resolves relative paths. An empty list means no sandbox: `fs.*` tools then fail with `filesystem tools require a configured sandbox root` |
 | `sandbox_read_only` | bool | `false` | Refuse writes |
 | `network_allow` | list of host globs | `[]` | Hosts `http.*` tools may reach; empty allows none. Env `CAIRN_NETWORK_ALLOW` (comma-separated) |
 | `allow_private_network` | bool | `false` | Skip the private-address (SSRF) check |
@@ -119,7 +121,7 @@ TOML has no null; omit a key to keep its default. A `Budget()` built in Python w
 |---|---|---|
 | `CAIRN_CONFIG` | `load_config` | Config file path |
 | `CAIRN_DATA_DIR` | `load_config` | Overrides `data_dir` |
-| `CAIRN_LOG_LEVEL` | `load_config`, CLI | Overrides `log_level` in the config; the CLI uses it directly for logging (default `WARNING`) |
+| `CAIRN_LOG_LEVEL` | `load_config`, CLI | Overrides `log_level`; when set, the CLI logs at this level and ignores the config's `log_level`/`json_logs` |
 | `CAIRN_JSON_LOGS` | CLI | Any non-empty value enables JSON logs |
 | `CAIRN_NETWORK_ALLOW` | `load_config` | Overrides `security.network_allow` |
 | `CAIRN_POLICY_STRICT` | `load_config` | Overrides `policy.strict` |
@@ -187,6 +189,12 @@ command = "npx"
 args = ["-y", "@modelcontextprotocol/server-filesystem", "./shared"]
 trust = "untrusted"
 allowed_tools = ["read_*", "list_*"]
+requires_approval = ["write_*"]
+quarantine_unpinned = true
+timeout_s = 30.0
+
+[cairn.mcp_servers.pinned]
+"files.read_file" = "3f1c2a9b8d7e6f50"
 ```
 
 Declaring any `[[models]]` disables auto detection; add the Claude models explicitly if you want both.

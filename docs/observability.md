@@ -76,7 +76,7 @@ All read the journal of `<data_dir>/cairn.db`:
 
 * `traceId`: first 16 bytes of SHA-256 of the run id; `spanId`: first 8 bytes of SHA-256 of `<run id>/<span id>`; deterministic, so re-exporting a run yields the same ids.
 * `kind` is `1` (internal) for every span; times are Unix nanoseconds as strings.
-* `status.code` is `2` (error) for spans whose status is `error`, else `1` (ok). Only node and effect spans use `error`; the run span's status is `completed`, `failed`, `cancelled` or `suspended`, so a failed run's root span is exported with code 1.
+* `status.code` is `2` (error) for spans whose status is `error`, `failed`, `cancelled` or `interrupted`, else `1` (ok). A failed or cancelled run's root span, a failed node or effect, and an interrupted attempt are therefore exported as errors; `suspended`, `waiting` and `skipped` are exported as ok.
 * Attributes are `cairn.<name>` string values (non-strings JSON-encoded), including `cairn.kind` and `cairn.status`.
 
 ```sh
@@ -94,6 +94,6 @@ Loggers live under `cairn` (`cairn.runtime`, `cairn.tools`, `cairn.agents`, `cai
 
 `configure_logging(level="INFO", json_logs=False)` installs one stderr handler on the `cairn` logger (replacing existing ones, `propagate=False`). With `json_logs`, `JsonFormatter` emits one JSON object per line with `ts`, `level`, `logger`, `msg`, any of `run_id`, `node_id`, `job_id`, `worker_id` passed in `extra`, and `exc` for exceptions. Other `extra` fields (for example a worker's `job_type`, `attempt`, `error`) are not included by the JSON formatter.
 
-The `cairn` CLI calls `configure_logging` with `CAIRN_LOG_LEVEL` (default `WARNING`) and JSON output when `CAIRN_JSON_LOGS` is set to any non-empty value. The `log_level` and `json_logs` fields of `cairn.toml` (and `CAIRN_LOG_LEVEL` as a config override) are validated and stored in `CairnConfig` but nothing applies them; call `configure_logging(config.log_level, config.json_logs)` yourself when embedding Cairn. `run_stdio_server` configures root logging from `CAIRN_MCP_LOG_LEVEL` (default `WARNING`) on stderr.
+The `cairn` CLI calls `configure_logging` at startup with `CAIRN_LOG_LEVEL` (default `WARNING`) and JSON output when `CAIRN_JSON_LOGS` is non-empty. When `CAIRN_LOG_LEVEL` is unset, commands that load the configuration then reconfigure logging from `cairn.toml`: level `log_level` (default `"WARNING"`), and JSON output when `json_logs` is true or `CAIRN_JSON_LOGS` is set. When embedding Cairn through the SDK, nothing configures logging; call `configure_logging(config.log_level, config.json_logs)` yourself. `run_stdio_server` configures root logging from `CAIRN_MCP_LOG_LEVEL` (default `WARNING`) on stderr.
 
 `cairn serve` passes `log_level="info"` to uvicorn.

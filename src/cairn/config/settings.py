@@ -102,7 +102,7 @@ class CairnConfig(BaseModel):
     budget: BudgetConfig = Field(default_factory=BudgetConfig)
     api: APIConfig = Field(default_factory=APIConfig)
     memory_enabled: bool = True
-    log_level: str = "INFO"
+    log_level: str = "WARNING"
     json_logs: bool = False
 
     @property
@@ -180,6 +180,16 @@ def load_config(path: str | Path | None = None, env: dict[str, str] | None = Non
             f"{'.'.join(str(p) for p in err['loc'])}: {err['msg']}" for err in exc.errors()
         ]
         raise ConfigError("invalid configuration:\n  " + "\n  ".join(problems), problems=problems) from exc
+    from cairn.mcp.bridge import MCPServerConfig
+
+    for server in config.mcp_servers:
+        try:
+            MCPServerConfig.model_validate(server.model_dump())
+        except ValidationError as exc:
+            problems = [f"mcp_servers[{server.name}].{'.'.join(str(p) for p in e['loc'])}: {e['msg']}"
+                        for e in exc.errors()]
+            raise ConfigError("invalid MCP server configuration:\n  " + "\n  ".join(problems),
+                              problems=problems) from exc
     if not config.models:
         config.models = auto_models(env)
     missing = [m.api_key_env for m in config.models

@@ -66,6 +66,7 @@ async with await Cairn.create() as cairn:
 | `run GOAL [--agent SPEC.toml] [-i] [--json]` | Plan and execute a goal with an agent |
 | `plan GOAL` | Show the plan without executing |
 | `exec PLAN.json [--input k=v ...] [-i] [--json]` | Execute a plan file |
+| `submit PLAN.json [--input k=v ...]` | Create a run and enqueue it for background workers |
 | `resume RUN_ID [-i]` | Resume a suspended or interrupted run |
 | `cancel RUN_ID` | Cancel a run |
 | `runs [--status S] [--limit N] [--json]` | List runs |
@@ -90,11 +91,11 @@ async with await Cairn.create() as cairn:
 Collected from the pages above:
 
 * Storage backends other than SQLite and in-memory (no Postgres, no external vector database).
-* CLI or HTTP endpoints that enqueue runs for workers (use `submit_run` in Python).
-* Cross-process cancellation of a running execution through `Runtime.cancel`.
+* An HTTP endpoint that enqueues runs for workers (use `cairn submit` or `Cairn.submit`).
 * A CLI command for evaluations.
-* MCP options beyond name, command, args, env, trust and allowed tools in `cairn.toml`.
 * Automatic re-verification of MCP tools after `tools/list_changed`.
+* Journaling of calls made through `cairn mcp-serve`.
 * Network isolation for `code.python`.
 * A bundled neural embedder or cross-encoder.
-* Applying `log_level` / `json_logs` from the configuration.
+
+Known limits that remain by design: the wall-clock budget applies per execution session, fork reuse sources are held in memory by the process that created the fork, and supervisor child runs are named after the sub-agent runner's base spec (`subagent@d1`), not the specialist.

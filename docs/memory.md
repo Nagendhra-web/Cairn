@@ -119,7 +119,7 @@ What a `memory` node stores carries both data and control provenance: the label 
 
 ## Episodes and procedures
 
-* `record_episode(goal, outcome, status, run_id, label, *, importance=None)` stores `Goal: ...\nStatus: ...\nOutcome: ...` as episodic with metadata `goal` and `status`. Default importance is 0.5 when `status == "succeeded"` and 0.6 otherwise ("failures teach more"). `Agent` passes run statuses (`completed`, `failed`, ...), so agent episodes always get 0.6 before scoring.
+* `record_episode(goal, outcome, status, run_id, label, *, importance=None)` stores `Goal: ...\nStatus: ...\nOutcome: ...` as episodic with metadata `goal` and `status`. Default importance is 0.5 when `status == "succeeded"` and 0.6 otherwise ("failures teach more"); this explicit weight is then combined with the text signal by `score_importance`. `Agent` passes `succeeded` for a completed run the critic accepted (or that had no criteria) and `failed` for a failed or critic-rejected run.
 * `save_procedure(goal, plan_json, label, *, run_id=None, status="succeeded")` stores the goal as text with the plan in metadata, explicit importance 0.7. A newer plan for a near-identical goal is merged into the existing record and replaces its `plan` metadata.
 * `find_procedures(goal, k=3)` returns `{id, goal, plan, score, label}` for procedural records whose `status` is `succeeded`.
 

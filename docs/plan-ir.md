@@ -150,7 +150,7 @@ Inside argument values (and any other "any"-typed field), two special JSON forms
 * `{"$ref": "node_id.path.to[0].field"}` evaluates to the (labeled) output of a node, walked by path. Paths support `.key` and `[index]` (negative indexes allowed).
 * `{"$tmpl": "Summary of {{fetch.text}}"}` is string interpolation; each `{{...}}` is a reference.
 
-The form must be the only key of its object: `{"$ref": "a"}` is a reference, but `{"$ref": "a", "note": 1}` is passed through as a literal dictionary at runtime. (Static validation still counts the root `a` as a dependency of such an object.)
+The form must be the only key of its object: `{"$ref": "a"}` is a reference, but `{"$ref": "a", "note": 1}` is a literal dictionary, both for validation (no dependency is added) and at runtime (it is passed through unchanged).
 
 `llm` prompts and system prompts use bare `{{ref}}` placeholders directly, without `$tmpl`.
 
@@ -254,7 +254,7 @@ At runtime, for each round up to `max_rounds`:
 
 **loop**: the body runs with `$iteration` (1-based) and `$last` (previous output, `None` first). After each iteration, `until` is evaluated with `$last` bound to the new output; its label is joined into the control label of later iterations. The output is `{"value": <last>, "iterations": n, "converged": bool, "history": [...]}`. Reaching `max_iterations` without convergence is not an error. Effects are keyed `node@attempt~iteration/kind#n`.
 
-Limits of body nodes: a body is executed directly as a tool call or an LLM call. Its own `id` is required by the schema but unused, and its `when`, `retry`, `timeout_s`, `fallbacks` and `on_error` fields are ignored; the enclosing `map`/`loop` node's settings apply to the whole node. A `tool` fallback declared on a `map` or `loop` node is validated but not applied at runtime (the body tool is called again); a `tier`/`model` fallback does apply to an `llm` body.
+Limits of body nodes: a body is executed directly as a tool call or an LLM call. Its own `id` is required by the schema but unused, and its `when`, `retry`, `timeout_s`, `fallbacks` and `on_error` fields are ignored; the enclosing `map`/`loop` node's settings apply to the whole node. Fallbacks declared on the `map`/`loop` node apply to the body: a fallback `tool` (with its `args`, or the body's `args` when `args` is `None`) replaces a `tool` body, and a fallback `tier`/`model` applies to an `llm` body. A fallback attempt re-runs the whole node, so every item or iteration runs with the fallback strategy.
 
 ## Validation rules
 
@@ -265,8 +265,9 @@ Limits of body nodes: a body is executed directly as a tool call or an LLM call.
 * special roots are used only where allowed (`$item`/`$index` in `map`, `$last`/`$iteration` in `loop`, `$input` and `$feedback` anywhere): `node 'c' uses $item outside a map/loop body`;
 * a node does not reference itself; every referenced node exists; every referenced root is added to `deps`;
 * every explicit dependency exists; `deps` is sorted and de-duplicated;
-* every tool a node may call (primary, `map`/`loop` body, and fallback tools) is registered (when a registry is given) and matches a grant pattern (`fnmatch`);
-* each such call passes every `required` argument of the tool's input schema and no argument the schema does not declare (types are checked later, at invocation);
+* every tool a node may call (primary, `map`/`loop` body, and fallback tools) is registered (when a registry is given) and matches a grant pattern (`fnmatch`); a quarantined tool is reported as `node 'a' uses quarantined tool 'files.read': <reason>`;
+* each such call passes every `required` argument of the tool's input schema and no argument the schema does not declare;
+* literal argument values (containing no `$ref` or `$tmpl` anywhere) are type-checked against the parameter's schema now, for example `node 'b': boom.x: expected integer, got str`; values that contain references or templates are checked at invocation;
 * every `agent` node's `tools` pattern attenuates the grants: allowed if some grant is `*` or the pattern matches a grant as a glob (parent `fs.*` allows child `fs.read` or `fs.*`; it does not allow `*`);
 * every `verify` target exists; the verification gate rewrite is applied;
 * `output` references only existing nodes;

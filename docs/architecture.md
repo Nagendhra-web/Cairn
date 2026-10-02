@@ -138,7 +138,7 @@ flowchart LR
 
 ## Request lifecycle of `Cairn.ask`
 
-`Cairn.ask(goal)` calls `self._require_models()` and then `self.agent().run(goal)`. `Cairn.agent()` builds an `AgentSpec(name="cairn", tools=config.tools, budget=config.budget.model_dump())`.
+`Cairn.ask(goal)` calls `self._require_models()` and then `self.agent().run(goal)`. `Cairn.agent()` builds an `AgentSpec(name="cairn", tools=cairn.grants(), budget=config.budget.model_dump())`, where `grants()` is `config.tools` plus configured MCP servers plus tools registered in code.
 
 ```mermaid
 sequenceDiagram
@@ -240,4 +240,4 @@ Example: a custom policy rule that denies any `send` effect outside business hou
 | `memory` | `memory_records` |
 | `queue` | `jobs` |
 
-Only SQLite and in-memory backends are implemented. The `storage/sqlite.py` docstring refers to a `docs/storage.md` for a Postgres backend; neither that document nor a Postgres backend exists.
+Only SQLite and in-memory backends are implemented. A Postgres backend implementing the same store protocols is planned (`ROADMAP.md`), not available.

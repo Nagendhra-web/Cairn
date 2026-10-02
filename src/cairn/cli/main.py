@@ -44,8 +44,7 @@ async def _app(args: argparse.Namespace, **kwargs: Any) -> Any:
 
     config = load_config(getattr(args, "config", None))
     if not os.environ.get("CAIRN_LOG_LEVEL"):
-        configure_logging(config.log_level if config.log_level != "INFO" else "WARNING",
-                          json_logs=config.json_logs or bool(os.environ.get("CAIRN_JSON_LOGS")))
+        configure_logging(config.log_level, json_logs=config.json_logs or bool(os.environ.get("CAIRN_JSON_LOGS")))
     return await Cairn.create(config, **kwargs)
 
 

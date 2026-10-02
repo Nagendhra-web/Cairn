@@ -80,6 +80,7 @@ class Cairn:
         self.memory = memory
         self.db = db
         self._mcp: list[Any] = []
+        self._registered: list[str] = []  # tools added in code are granted by default
 
     @classmethod
     async def create(
@@ -100,7 +101,8 @@ class Cairn:
             router.register(provider, info)
         registry = ToolRegistry()
         registry.register_all(builtin_tools(tuple(config.tools)))
-        for spec in tools:
+        extra = list(tools)
+        for spec in extra:
             registry.register(spec, replace=True)
         roots = [Path(r) for r in config.security.sandbox_roots]
         for root in roots:
@@ -123,6 +125,7 @@ class Cairn:
         runtime = Runtime(services)
         services.subagents = AgentSubagentRunner(runtime, memory)
         app = cls(runtime, config, memory, db)
+        app._registered.extend(spec.name for spec in extra)
         for collection in config.collections:
             corpus = app.corpus(collection.name, trusted=collection.trusted)
             if collection.path:
@@ -143,6 +146,9 @@ class Cairn:
         return self.runtime.services.router
 
     def register_tool(self, spec: ToolSpec) -> ToolSpec:
+        """Register a tool and include it in the default grants of runs and agents."""
+        if spec.name not in self._registered:
+            self._registered.append(spec.name)
         return self.tools.register(spec, replace=True)
 
     def corpus(self, name: str = "default", *, trusted: bool = False) -> DocumentCorpus:
@@ -161,8 +167,8 @@ class Cairn:
         return report
 
     def grants(self) -> list[str]:
-        """Tool patterns runs may use: configured tools plus mounted MCP servers."""
-        return [*self.config.tools, *(f"{s.name}.*" for s in self.config.mcp_servers)]
+        """Default tool grants: configured tools, configured MCP servers, tools registered in code."""
+        return [*self.config.tools, *(f"{s.name}.*" for s in self.config.mcp_servers), *self._registered]
 
     def budget(self) -> Budget:
         return Budget(**self.config.budget.model_dump())
@@ -170,7 +176,7 @@ class Cairn:
     # -------------------------------------------------------------- running
 
     def agent(self, spec: AgentSpec | None = None, **overrides: Any) -> Agent:
-        spec = spec or AgentSpec(name="cairn", tools=self.config.tools,
+        spec = spec or AgentSpec(name="cairn", tools=self.grants(),
                                  budget=self.config.budget.model_dump())
         if overrides:
             spec = spec.model_copy(update=overrides)
@@ -182,6 +188,7 @@ class Cairn:
 
     async def run(self, plan: Plan, **kwargs: Any) -> RunResult:
         kwargs.setdefault("budget", self.budget())
+        kwargs.setdefault("grants", self.grants())
         return await self.runtime.run(plan, **kwargs)
 
     async def submit(self, plan: Plan, **kwargs: Any) -> tuple[str, str]:
@@ -189,6 +196,7 @@ class Cairn:
         from cairn.workers import SQLiteWorkQueue, submit_run
 
         kwargs.setdefault("budget", self.budget())
+        kwargs.setdefault("grants", self.grants())
         return await submit_run(self.runtime, SQLiteWorkQueue(self.db), plan, **kwargs)
 
     def supervisor(self, specialists: list[AgentSpec]) -> Supervisor:

@@ -30,7 +30,7 @@ Request mapping:
 * `system` is the request's `system` plus the text of any `system`-role messages, joined with blank lines; other messages are sent as `messages`.
 * `stop` becomes `stop_sequences`.
 * `effort` becomes `output_config.effort`; `response_schema` becomes `output_config.format = {"type": "json_schema", "schema": ...}` (structured outputs).
-* With `server_fallback=True` (the default, and what `build_router` uses), every request carries `betas=["server-side-fallback-2026-07-01"]` and `fallbacks="default"`, so the API can re-run a request declined by a safety classifier on a fallback model chosen by refusal category.
+* With `server_fallback=True` (the default, and what `build_router` uses), requests to models whose name starts with `claude-fable-5`, `claude-opus-5` or `claude-sonnet-5-5` carry `betas=["server-side-fallback-2026-07-01"]` and `fallbacks="default"`, so the API can re-run a request declined by a safety classifier on a fallback model chosen by refusal category. Other models (for example `claude-haiku-4-5` or `claude-sonnet-5`) are sent without them.
 * Image and document parts become `url` sources or `base64` sources (default media types `image/png` and `application/pdf`); audio parts raise `ModelError`.
 
 Response mapping:
@@ -109,7 +109,7 @@ In the executor, model calls are effects of kind `model`. Retries of an `llm` no
 * The journal records `cost_usd` per model effect (possibly `null`).
 * Run usage (`Usage`) adds priced costs and counts `unpriced_calls` for calls without a price; reports print `cost=$0.000000 (+1 unpriced)`; `by_model` breaks usage down per model name.
 * `cairn.eval.metrics.aggregate_usage` reports `cost_usd = None` when no call was priced and `cost_complete = False` when only some were.
-* Planner usage is added to the run under `by_model["planner"]`. The planner sums only known costs, and unpriced planner calls are not counted in `unpriced_calls`.
+* Planner usage is added to the run under `by_model["planner"]`; unpriced planner calls are counted in the run's `unpriced_calls`.
 * Cost budgets (`max_cost_usd`) only see priced calls.
 
 `auto_models` (below) configures published per-token prices for the three Claude models it adds. Ollama models added by `auto_models` are priced at 0. Models declared in `cairn.toml` without prices are unpriced.
@@ -162,6 +162,6 @@ Several can apply at once. `cairn doctor` lists what was detected. With no model
 
 ## Limitations
 
-* `server_fallback` cannot be turned off from `cairn.toml`; construct `AnthropicProvider(server_fallback=False)` and register it in code if your account or model does not accept the fallback beta.
+* `server_fallback` cannot be turned off from `cairn.toml`; construct `AnthropicProvider(server_fallback=False)` and register it in code if your account does not accept the fallback beta.
 * No request-size check against `context_window`.
 * Breaker and rate-limiter state is per process.

@@ -194,7 +194,7 @@ Approvals are journaled like everything else.
 3. If an `ApprovalHandler` is configured and the mode is live, it is awaited. A returned decision is journaled as `approval.decided`; approval proceeds, rejection fails the node with non-retryable `policy_violation`. Returning `None` defers.
 4. Otherwise the node emits `node.waiting` and parks. Independent nodes keep running. When nothing else can progress, the run emits `run.suspended` with the waiting nodes and pending request ids.
 5. An operator records a decision with `Runtime.decide(run_id, request_id, approved=..., by=..., note=...)` (CLI `cairn approve <run_id> <request_id> [--reject] [--note ...] [--by ...]`, API `POST /v1/runs/{id}/approvals/{request_id}`). Deciding twice is an error.
-6. `resume` re-runs waiting nodes (each at most once per execution session), with the same attempt number. The recomputed request id finds the decision: approved calls proceed, rejected ones fail with `approval rejected by <who>: <note or reason>`.
+6. Within one execution session a node is relaunched from `waiting` at most once, and a node that goes to `waiting` during a session is not relaunched in that session, so each wait produces exactly one `policy.decision`. `resume` starts a new session and re-runs waiting nodes with the same attempt number. The recomputed request id finds the decision: approved calls proceed, rejected ones fail with `approval rejected by <who>: <note or reason>`.
 
 `cairn run -i`, `cairn exec -i` and `cairn resume -i` install a terminal approval handler that prompts `approve? [y/N]` when stdin is a TTY and defers otherwise.
 
@@ -205,7 +205,11 @@ Approvals are journaled like everything else.
 * If the run is executing in this process, it sets the run's cancel event. The executor aborts in-flight node tasks and appends `run.cancelled` with reason `cancel requested`. Returns `True`.
 * Otherwise, if the run is not terminal, it appends `run.cancelled` with the given reason and returns `True`; if terminal, returns `False`.
 
-The second branch does not reach an executor running in a different process. That executor does not watch the journal for `run.cancelled`, so it keeps running and may append further events, including `run.completed`. To stop a run that a worker is executing, cancel its job in the queue (`SQLiteWorkQueue.cancel(job_id)`): the worker's next heartbeat fails, the worker cancels the execution, and the run stays resumable.
+An executor in another process (an API process, a worker) notices the second case: while nodes are running it folds events appended by other writers at least every `Executor.poll_interval_s` (0.5 seconds), and when it reads `run.cancelled` it aborts its in-flight node tasks and stops without appending a second cancel event. Cancellation is therefore observed within about half a second. Aborting a node task interrupts its effect; an external side effect already in progress may still complete without being recorded (see the at-least-once window above).
+
+To stop a worker job without cancelling the run, cancel the job in the queue (`SQLiteWorkQueue.cancel(job_id)`): the worker's next heartbeat fails, the worker abandons the execution, and the run stays resumable.
+
+The same polling folds other external events, such as approval decisions recorded by an operator while the run executes.
 
 ## Sub-agents
 
@@ -250,11 +254,12 @@ The child call is itself an effect of kind `subagent`. A child that ends `suspen
 
 **Helpers**: `submit_run(runtime, queue, plan, *, priority=0, max_attempts=3, **create_run_kwargs)` creates a run and enqueues `run.execute` with the run id as idempotency key; `resume_when_approved(queue, run_id, ...)` enqueues `run.resume`.
 
-`cairn worker --concurrency N` runs a worker against `<data_dir>/cairn.db`. Neither the CLI nor the HTTP API currently enqueues jobs: runs started with `cairn run`/`cairn exec` execute in the CLI process, and runs started through the API execute as background tasks in the API process. Enqueue from Python with `submit_run` to use workers.
+`Cairn.submit(plan, **create_run_kwargs) -> (run_id, job_id)` calls `submit_run` on the SDK's database with `budget=cairn.budget()` and `grants=cairn.grants()` by default (configured tools, configured MCP servers and tools registered in code), the same defaults as `Cairn.run` and `POST /v1/runs`. `cairn submit PLAN.json [--input k=v ...]` does the same from the CLI and prints `queued run <run_id> as job <job_id>; start workers with: cairn worker`. `cairn worker --concurrency N` runs a worker against `<data_dir>/cairn.db` (with the configured MCP servers mounted).
+
+Runs started with `cairn run`/`cairn exec` execute in the CLI process, and runs started through the API execute as background tasks in the API process; only submitted runs go through the queue.
 
 ## Limitations
 
-* No cross-process cancellation of a running execution through `Runtime.cancel` (use job cancellation).
 * Effects are exactly-once only once recorded; see the at-least-once window above.
 * Fork reuse sources are process-local for unfinished forks.
 * `max_wall_s` is per execution session.

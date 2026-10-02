@@ -103,7 +103,7 @@ What a tool may see of the runtime when it declares `ctx`:
 | `http.post_json` | `network`, `send` | `url`, `payload` | `untrusted` | 30 s | `url`, `payload` | Returns `{status, body}` (first 5000 characters) |
 | `comms.send_email` | `send` | `to` | `trusted` | 60 s | `to`, `subject`, `body` | Uses `tool_services["mail_transport"]` (an async callable returning a message id) if present, else appends to `tool_services["outbox"]`; rejects recipients without `@` or containing CR, LF, `,` or `;` |
 
-The `comms.send_email` module docstring says bodies are sensitive sinks too; the declaration lists only `to`. An attacker-influenced `body` sent to a trusted recipient is therefore allowed without approval (see [provenance.md](provenance.md#what-an-attacker-controlling-a-web-page-can-and-cannot-cause)).
+Only `to` is a sensitive parameter of `comms.send_email`. An attacker-influenced `body` sent to a trusted recipient is allowed without approval; a body carrying secrecy tags is still denied by the `secret-egress` rule because the tool declares the `send` effect (see [provenance.md](provenance.md#what-an-attacker-controlling-a-web-page-can-and-cannot-cause)).
 
 ## Adding a tool
 
@@ -145,7 +145,7 @@ The derived schema:
  "required": ["contact_id", "email"], "type": "object"}
 ```
 
-Register it with `cairn.register_tool(update_contact)` (replaces an existing tool of the same name), `Cairn.create(tools=[update_contact])`, or `registry.register(update_contact)`. Grant it to agents through `AgentSpec.tools` or `config.tools` patterns such as `crm.*`; note that `config.tools` is also used to select built-ins, and non-matching patterns are harmless.
+Register it with `cairn.register_tool(update_contact)` (replaces an existing tool of the same name), `Cairn.create(tools=[update_contact])`, or `registry.register(update_contact)`. Tools registered through the SDK are added to `Cairn.grants()` automatically, so the default agent, `Cairn.run` and API plans may use them; agents built from an explicit `AgentSpec` need the tool in `AgentSpec.tools` (for example `crm.*`).
 
 Run with a vault `SecretVault({"CRM_TOKEN": "..."})`, the journaled effect carries `secrets_used: ["CRM_TOKEN"]` and the notes; if the tool returned the token, the journal would show `[REDACTED:CRM_TOKEN]`.
 
@@ -192,7 +192,22 @@ trust = "untrusted"
 allowed_tools = ["read_*", "list_*"]
 ```
 
-`Cairn.create` mounts each entry (unless `mount_mcp=False`). Only `name`, `command`, `args`, `env`, `trust` and `allowed_tools` are read from the file; other `MCPServerConfig` fields must be set in code.
+`Cairn.create` mounts each entry (unless `mount_mcp=False`). Every key of the entry is passed to `MCPServerConfig`, so all fields in the table above can be set in the file, for example:
+
+```toml
+[[mcp_servers]]
+name = "files"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/srv/shared"]
+allowed_tools = ["read_*", "list_*", "write_file"]
+requires_approval = ["write_file"]
+quarantine_unpinned = true
+effects_override = { write_file = ["write"] }
+sensitive_params = { write_file = ["path", "content"] }
+pinned = { "files.read_file" = "3f1c2a9b8d7e6f50" }
+```
+
+An unknown key fails the mount with a pydantic `ValidationError`. Pins kept in a separate pin file still need code (`load_pins`) or copying into the configuration.
 
 ### From code
 
@@ -227,14 +242,16 @@ A pin file is JSON: `{"version": 1, "tools": {"files.read_file": "<fingerprint>"
 
 ## Serving tools over MCP (server side)
 
-`cairn mcp-serve [--expose GLOB ...] [--allow-privileged]` builds the configured `Cairn` (without mounting MCP servers) and serves its registry over stdio with `MCPServer`. In Python: `run_stdio_server(registry, expose=["math.*"])` or `MCPServer(registry, name="cairn", version="0.1.0", expose=("*",), allow_privileged=False, vault=None, instructions=None, page_size=100).serve_stdio()`.
+`cairn mcp-serve [--expose GLOB ...] [--allow-privileged]` builds the configured `Cairn` (without mounting MCP servers) and serves its registry over stdio with `MCPServer`, passing the app's secret vault, filesystem sandbox and network policy. In Python: `run_stdio_server(registry, expose=["math.*"])` or `MCPServer(registry, name="cairn", version="0.1.0", expose=("*",), allow_privileged=False, vault=None, sandbox=None, network=None, policy=None, instructions=None, page_size=100).serve_stdio()`.
 
 * Only tools matching `expose` are listed or callable; a hidden tool is indistinguishable from a nonexistent one (`unknown tool: <name>`).
 * Without `allow_privileged`, tools with privileged effects or `requires_approval` are withheld, because an MCP client has no channel for Cairn's approval flow.
+* **Policy.** Unless `policy=` is given, a server with `allow_privileged=False` evaluates every call with `PolicyEngine(strict=True)`, labeling every argument and the control flow `untrusted("mcp-client:<client name>")` (the name from the client's `initialize`). Anything that would need approval is denied and returned as an `isError` result `denied by policy (<rule>): <reason>`. In practice an untrusted value in any sensitive parameter is denied: `http.fetch` called over MCP returns `denied by policy (untrusted-to-sensitive-sink): sensitive parameter(s) ['url'] of 'http.fetch' derive from untrusted data`, while `math.calculate` and `fs.read` (no sensitive parameters) run. With `allow_privileged=True` and no `policy=`, no provenance policy is applied: the operator trusts the client.
+* Tools get the configured `sandbox` and `network` policy in their `ToolContext`, so `fs.*` and `http.*` tools work within the same boundaries as in runs.
 * Supported methods: `initialize` (negotiates `2025-06-18`, `2025-03-26` or `2024-11-05`, else answers `2025-06-18`), `ping`, `tools/list` (cursor pagination, `page_size` 100), `tools/call`; notifications `notifications/initialized` and `notifications/cancelled` (cancels the in-flight call; cancelled requests get no response).
 * Tool definitions include annotations derived from effects: `readOnlyHint` (effects are a subset of `{read}`), `destructiveHint` (any of `write`, `delete`, `payment`, `execute`), `idempotentHint`, `openWorldHint` (`network` or `send`). `outputSchema` is included when the tool's output schema is an object.
 * Results: strings become one text content item; dicts also become `structuredContent`; lists become `structuredContent: {"result": [...]}`. Errors are returned as `isError: true` results with a redacted message.
 * Each call gets a secret scope limited to the tool's declared secrets; responses are redacted with the vault.
 * Stdout is reserved for protocol messages: file descriptor 1 is pointed at stderr while serving.
 
-Limits: calls through the MCP server do not go through the provenance policy or the journal, and no sandbox or network policy is passed to tools, so `fs.*`, `http.fetch` and `http.post_json` are listed (when exposed) but fail with a configuration error. Exposing them over MCP needs a code change.
+Limits: calls through the MCP server are not journaled (no run, no replay, no trace), and there is no approval channel: with the default settings a call that would need approval is denied outright.

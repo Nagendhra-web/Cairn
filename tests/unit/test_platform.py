@@ -128,3 +128,10 @@ async def test_plan_json_roundtrip(runtime):
     again = Plan.model_validate_json(json.dumps(plan.model_dump(mode="json")))
     result = await runtime.run(again, inputs={"n": 41})
     assert result.output == 42
+
+
+def test_mcp_config_errors_surface_at_load(tmp_path: Path):
+    cfg = tmp_path / "cairn.toml"
+    cfg.write_text('[[cairn.mcp_servers]]\nname = "x"\ncommand = "y"\npinnned = {}\n')
+    with pytest.raises(ConfigError, match="mcp_servers"):
+        load_config(cfg, env={})

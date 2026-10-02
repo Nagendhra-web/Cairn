@@ -78,7 +78,7 @@ max_wall_s = 300
 3. Parse with `extract_json` (tolerates code fences and prose), fill a missing `goal`, `Plan.model_validate`, then `validate_plan` against the live registry, the grants and `max_nodes`.
 4. On a parse, schema or validation error, append the model's answer and `The plan is invalid:\n- <problem>\n- ...\nReturn the corrected JSON plan only.` and ask again. After `max_repairs` repairs (3 attempts in total by default) raise `PlanValidationError` with the last problems.
 
-It returns `PlanningResult(plan, label, attempts, usage, context, problems)`. `label = base_label.join(context.label)`; `usage` sums `calls`, `input_tokens`, `output_tokens` and `cost_usd` over the attempts. `to_meta()` (`attempts`, `usage`, `context`, `repairs`) is stored in `run.created`, and folding it charges the planner usage to the run (`by_model["planner"]`), so it counts toward budgets and appears in reports.
+It returns `PlanningResult(plan, label, attempts, usage, context, problems)`. `label = base_label.join(context.label)`; `usage` sums `calls`, `input_tokens`, `output_tokens` and `cost_usd` over the attempts, and counts calls to unpriced models in `unpriced_calls` (present only when there was one). `to_meta()` (`attempts`, `usage`, `context`, `repairs`) is stored in `run.created`, and folding it charges the planner usage to the run (`by_model["planner"]`), so it counts toward budgets and appears in reports.
 
 `cairn plan "<goal>"` prints the plan JSON (`plan_to_json`, defaults omitted) and, on stderr, the plan label and attempt count, without executing.
 
@@ -116,7 +116,7 @@ This final critic is separate from `verify` nodes with a `critic` field, which r
 
 ## Procedures and episodes
 
-After each run the agent calls `memory.record_episode(goal, outcome, status, run_id, label)` with `outcome = "status=<status>; output=<first 300 chars>"` plus `; review issues: ...` when the critic found issues. On an accepted, completed run with a trusted plan label it calls `memory.save_procedure(goal, plan_to_json(plan), label)`; a `PolicyViolation` there is logged and ignored. Untrusted runs never become procedures. Procedures are fed back into later planning as few-shot sections. Details in [memory.md](memory.md#episodes-and-procedures).
+After each run the agent calls `memory.record_episode(goal, outcome, status, run_id, label)` with `status` = `succeeded` (completed and accepted) or `failed` (failed, or rejected by the critic), and `outcome = "status=<run status>; output=<first 300 chars>"` plus `; review issues: ...` when the critic found issues. On an accepted, completed run with a trusted plan label it calls `memory.save_procedure(goal, plan_to_json(plan), label)`; a `PolicyViolation` there is logged and ignored. Untrusted runs never become procedures. Procedures are fed back into later planning as few-shot sections. Details in [memory.md](memory.md#episodes-and-procedures).
 
 ## Sub-agents
 
@@ -134,7 +134,7 @@ The child is planned and executed but not critic-checked, and its episodes are n
 `Supervisor(runtime, specialists, *, tier=Tier.BALANCED, max_tasks=8)` compiles multi-agent delegation into an ordinary plan instead of free-form agent chat.
 
 1. **Delegate.** One model call with the goal and a roster (`- <name>: <description or first 200 chars of instructions> (tools: ...)`) asks for `{"tasks": [{"id", "agent", "goal", "depends_on"}], "synthesis": "..."}` (`DELEGATION_SCHEMA`), at most `max_tasks` tasks, `depends_on` only when a task needs another's result.
-2. **Compile** (`compile(goal, delegation)`), rejecting unknown agents, unknown dependencies and too many tasks with `PlanValidationError`:
+2. **Compile** (`compile(goal, delegation)`), rejecting the reserved task id `synthesis`, unknown agents, unknown dependencies and too many tasks with `PlanValidationError`:
    * each task becomes an `AgentNode(id=task.id, goal=..., tools=specialist.tools, tier=specialist.planner_tier, instructions=specialist.instructions or None, deps=depends_on, description="delegated to <name>")`; a task with dependencies gets a `$tmpl` goal that appends `Result of task <dep>:\n{{<dep>}}` for each dependency;
    * a final `LLMNode(id="synthesis", tier=supervisor tier)` with the goal, the synthesis instruction and every task's result as `### <id> (<agent>)\n{{<id>}}`;
    * `output = {"$ref": "synthesis"}`, `metadata = {"supervisor": true, "specialists": [...]}`.
@@ -142,6 +142,6 @@ The child is planned and executed but not critic-checked, and its episodes are n
 
 Independent specialists run in parallel; dependent ones receive results through templates, so agent-to-agent communication is labeled data flow. The whole hierarchy is durable, resumable and replayable.
 
-What a specialist contributes is its `tools`, `planner_tier` and `instructions`. The children are planned by the runtime's `SubagentRunner` with its base spec, so a specialist's `name`, `criteria`, `collections`, `max_replans`, `critic_tier` and `budget` are not applied (child runs are named `subagent@d1`). A task id that is not a valid node id, or the id `synthesis`, makes run creation fail plan validation; that error is raised rather than fed back to the delegation model.
+What a specialist contributes is its `tools`, `planner_tier` and `instructions`. The children are planned by the runtime's `SubagentRunner` with its base spec, so a specialist's `name`, `criteria`, `collections`, `max_replans`, `critic_tier` and `budget` are not applied (child runs are named `subagent@d1`). A task id that is not a valid node id passes `compile` but fails plan validation when the run is created; that error is raised rather than fed back to the delegation model. (The reserved id `synthesis` is caught by `compile` and fed back.)
 
 `cairn.supervisor(specialists)` returns a `Supervisor` bound to the SDK runtime.

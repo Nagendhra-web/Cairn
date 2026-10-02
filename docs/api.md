@@ -18,7 +18,8 @@ Runs started over HTTP execute as background tasks in the API process. On shutdo
 * Send `Authorization: Bearer <key>` or `X-API-Key: <key>`. Missing or wrong key: `401 {"detail": "missing or invalid API key"}`.
 * No keys configured: only clients at `127.0.0.1`, `::1`, `localhost` or `testclient` are served; others get `403 {"detail": "no API keys configured; only loopback clients are allowed"}`.
 * Each identity (`key:<index>` or `ip:<address>`) has a token bucket with `api.requests_per_second` (default 5) and burst `api.burst` (default 20). Excess: `429 {"detail": "rate limit exceeded"}`.
-* `GET /health`, `GET /` and the WebSocket endpoint do not use this dependency; see [security.md](security.md#api-authentication-and-rate-limits) for the consequences.
+* `GET /health` and `GET /` (the static dashboard page) are unauthenticated; `/health` returns only `{"status": "ok"}`. The dashboard's data calls go to authenticated endpoints.
+* The WebSocket endpoint applies the same rules with its own close codes: a missing or wrong `?key=` closes with 4401 when keys are configured; a non-loopback client closes with 4403 when none are; an exhausted rate limit closes with 4429. Each connection attempt consumes one token from the identity's bucket.
 
 ## Errors
 
@@ -31,19 +32,35 @@ Runs started over HTTP execute as background tasks in the API process. On shutdo
 | `BudgetExceeded` | 429 | `{"error": {...}}` |
 | `ApprovalRequired` | 409 | `{"error": {...}}` |
 | other `CairnError` | 400 | `{"error": {...}}` |
+| pydantic `ValidationError` (for example a `plan` that does not parse as Plan IR) | 422 | `{"error": {"code": "invalid_request", "message": "request failed validation", "details": {"problems": [...]}}}` (at most 20 problems) |
 | explicit checks | 401, 403, 404, 422, 429 | `{"detail": "..."}` |
 | request body that does not match the endpoint's model | 422 | FastAPI validation error |
 
-A `plan` that is valid JSON but does not parse as Plan IR (for example an unknown node `kind`) currently produces `500 Internal Server Error`, because the pydantic `ValidationError` raised by `Plan.model_validate` is not mapped. A plan that parses but fails static validation returns 422 as above.
+A plan with an unknown node kind:
+
+```json
+{"error": {"code": "invalid_request", "message": "request failed validation",
+           "details": {"problems": ["nodes.0: Input tag 'nope' found using 'kind' does not match any of the expected tags: 'tool', 'llm', ..."]}}}
+```
+
+A plan that parses but fails static validation returns 422 with `plan_invalid` as above.
 
 ## Endpoints
 
 ### `GET /health`
 
-No authentication.
+No authentication; reveals nothing about the deployment.
 
 ```json
-{"status": "ok", "models": ["claude-haiku-4-5", "claude-sonnet-5-5", "claude-opus-5-5"], "tools": 6, "active_runs": 0}
+{"status": "ok"}
+```
+
+### `GET /v1/info`
+
+Authenticated. Registered model names, the number of registered (non-quarantined) tools, and the number of background tasks running in this API process.
+
+```json
+{"models": ["claude-haiku-4-5", "claude-sonnet-5-5", "claude-opus-5-5"], "tools": 6, "active_runs": 0}
 ```
 
 ### `GET /v1/runs?status=&limit=50`
@@ -61,7 +78,7 @@ Run records, newest first; `limit` is capped at 500.
 
 Body (`StartRun`): exactly one of `goal` or `plan`, plus `inputs` (object, default `{}`) and `agent` (object of `AgentSpec` field overrides, goal runs only).
 
-Plan run: the plan is validated and executed with `cairn.budget()` (the `[budget]` configuration) and grants `["*"]`.
+Plan run: the plan is validated and executed with `cairn.budget()` (the `[budget]` configuration) and grants `cairn.grants()`: the patterns in `config.tools`, plus `<name>.*` for each configured MCP server, plus the names of tools registered in code (`register_tool`, `Cairn.create(tools=...)`). With the default configuration that is `["math.*", "fs.*", "http.fetch", "comms.*"]`. A plan that uses a tool outside these patterns fails validation with `uses tool '...' which is not granted`.
 
 ```json
 {"plan": {"goal": "calc", "nodes": [{"id": "c", "kind": "tool", "tool": "math.calculate", "args": {"expression": "6*7"}}],
@@ -120,7 +137,7 @@ data: {}
 
 `event` items are durable journal events (resume a dropped stream with `after=<last seq>`); `live` items are ephemeral token deltas, sent only while an `llm` node streams. 404 if the run does not exist.
 
-`WS /v1/runs/{run_id}/ws?key=<api key>&after=0` sends the same items as JSON text frames (`{"kind": "event", ...}` and `{"kind": "live", ...}`), then `{"kind": "end"}`, and closes. With keys configured, a missing or wrong `key` closes the socket with code 4401 before accepting.
+`WS /v1/runs/{run_id}/ws?key=<api key>&after=0` sends the same items as JSON text frames (`{"kind": "event", ...}` and `{"kind": "live", ...}`), then `{"kind": "end"}`, and closes. Before accepting, it closes with 4401 (keys configured, missing or wrong `key`), 4403 (no keys configured and a non-loopback client) or 4429 (rate limit exceeded).
 
 ### `GET /v1/runs/{run_id}/approvals`
 
@@ -208,8 +225,8 @@ Body `{"query": "...", "kind": "any", "k": 10}` (`k` 1..100). Returns recall res
 
 ### `GET /`
 
-The bundled dashboard (`api/static/dashboard.html`), a static page that calls `/v1/runs`, `/v1/runs/{id}/html`, `/v1/runs/{id}/stream`, `/v1/runs/{id}/approvals` and `/v1/runs/{id}/replay`.
+The bundled dashboard (`api/static/dashboard.html`), a static page that calls `/v1/info`, `/v1/runs`, `/v1/runs/{id}/html`, `/v1/runs/{id}/stream`, `/v1/runs/{id}/approvals` and `/v1/runs/{id}/replay`.
 
 ## Not available over HTTP
 
-Enqueueing runs for workers, mounting MCP servers, pinning or consolidating memory, journal verification and listing quarantined tools are available through the CLI or Python only.
+Enqueueing runs for workers (`cairn submit`, `Cairn.submit`), mounting MCP servers, pinning or consolidating memory, journal verification and listing quarantined tools are available through the CLI or Python only.
