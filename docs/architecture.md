@@ -201,7 +201,7 @@ sequenceDiagram
 
 Points worth knowing:
 
-* The planner, critic and supervisor call the router directly. Those calls are **not** journaled as effects and do not count against the run's `Budget`; planning usage is stored in the `run.created` event under `planning` (`attempts`, `usage`, `context`, `repairs`) and appears in run reports. Replaying a run re-executes its recorded plan; it does not re-plan.
+* The planner calls the router directly, before the run exists, so its calls are not journaled as individual effects. Their usage is stored in the `run.created` event under `planning` (`attempts`, `usage`, `context`, `repairs`), and folding that event charges it to the run: `Usage.add_planning` adds the planner's calls, tokens and cost to `RunState.usage`, recorded under `by_model["planner"]`. Planning therefore counts toward the run's token, model-call and cost budgets for every later effect, and appears in run reports. The critic (`Critic.evaluate`) and the supervisor's delegation call also go directly to the router; they are not charged to a run. Replaying a run re-executes its recorded plan; it does not re-plan.
 * The run goal recorded in the journal is the plan's `goal` field. The planner keeps a `goal` the model emits and only fills it in when missing (`data.setdefault("goal", goal)`), so the run goal can differ from the text passed to `ask`.
 * If the run suspends for approval, `Agent.run` returns an `AgentResult` with `status="suspended"`; `Agent.resume(run_id)` continues later.
 * If the run fails or the critic rejects it, the agent replans with feedback, up to `AgentSpec.max_replans` (default 1). Each attempt is a separate run; `AgentResult.run_ids` lists them.

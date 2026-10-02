@@ -1,0 +1,55 @@
+{
+  "goal": "Compile a small research digest from fixed figures, save it, and verify the saved file",
+  "metadata": {
+    "description": "Tool-only plan for `cairn exec`: no models, no network. Needs --input topic=...",
+    "tools": ["math.calculate", "fs.write", "fs.read"]
+  },
+  "nodes": [
+    {
+      "id": "figures",
+      "kind": "map",
+      "description": "Compute every figure in parallel (one math.calculate call per item)",
+      "over": ["1250 * 12", "980 * 12", "round((1250 - 980) / 980 * 100, 1)"],
+      "body": {
+        "id": "calc",
+        "kind": "tool",
+        "tool": "math.calculate",
+        "args": {"expression": {"$ref": "$item"}}
+      }
+    },
+    {
+      "id": "save",
+      "kind": "tool",
+      "tool": "fs.write",
+      "args": {
+        "path": "digest/research_digest.md",
+        "content": {
+          "$tmpl": "# Research digest: {{$input.topic}}\n\n- Annual revenue, plan A: {{figures[0]}} USD\n- Annual revenue, plan B: {{figures[1]}} USD\n- Plan A is {{figures[2]}}% higher than plan B\n"
+        }
+      }
+    },
+    {
+      "id": "readback",
+      "kind": "tool",
+      "tool": "fs.read",
+      "deps": ["save"],
+      "args": {"path": "digest/research_digest.md"}
+    },
+    {
+      "id": "check",
+      "kind": "verify",
+      "target": "readback",
+      "on_fail": "fail",
+      "checks": [
+        {"type": "contains", "value": "Research digest"},
+        {"type": "regex", "value": "\\d+(\\.\\d+)?% higher"}
+      ]
+    }
+  ],
+  "output": {
+    "file": {"$ref": "save.path"},
+    "bytes": {"$ref": "save.bytes"},
+    "figures": {"$ref": "figures"},
+    "digest": {"$ref": "readback"}
+  }
+}
