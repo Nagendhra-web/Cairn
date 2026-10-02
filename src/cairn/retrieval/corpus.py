@@ -78,7 +78,7 @@ class DocumentCorpus:
         count = 0
         root = Path(path)
         for pattern in patterns:
-            files = await asyncio.to_thread(lambda p=pattern: sorted(root.rglob(p)))
+            files = await asyncio.to_thread(_glob, root, pattern)
             for file in files:
                 text = await asyncio.to_thread(file.read_text, encoding="utf-8", errors="replace")
                 await self.add(text, doc_id=str(file.relative_to(root)), source=str(file))
@@ -124,6 +124,10 @@ class DocumentCorpus:
             "collection": self.name,
             "metadata": {k: v for k, v in meta.items() if k != "doc_id"},
         }
+
+
+def _glob(root: Path, pattern: str) -> list[Path]:
+    return sorted(root.rglob(pattern))
 
 
 def heuristic_decompose(query: str) -> list[str]:
