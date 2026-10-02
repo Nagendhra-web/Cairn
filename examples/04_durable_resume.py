@@ -158,7 +158,7 @@ async def main() -> None:
         header("5. Journal integrity")
         events = await rt2.journal.read(run_id)
         problems = verify_chain(events)
-        print(f"  {len(events)} events, hash chain {'OK' if not problems else problems}")
+        print(f"  {len(events)} events, hash chain {problems or 'OK'}")
 
         header("6. Run report")
         print(render_text(run_report(run_id, events)))

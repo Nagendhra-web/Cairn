@@ -101,8 +101,12 @@ async def main() -> int:
         server = uvicorn.Server(uvicorn.Config(create_app(cairn, api_keys=[]), host="127.0.0.1",
                                                port=port, log_level="warning"))
         serve_task = asyncio.create_task(server.serve())
-        while not server.started:
+        for _ in range(500):  # uvicorn exposes no event to await, so poll its flag
+            if server.started:
+                break
             await asyncio.sleep(0.02)
+        else:
+            raise RuntimeError("uvicorn did not start")
         base = f"http://127.0.0.1:{port}"
         try:
             # trust_env=False keeps any HTTP(S)_PROXY settings away from loopback traffic.

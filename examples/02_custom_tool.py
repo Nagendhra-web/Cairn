@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import tempfile
 from typing import Any
 
@@ -100,8 +101,6 @@ def first_number(text: str) -> float:
     Args:
         text: any text
     """
-    import re
-
     match = re.search(r"\d+(?:\.\d+)?", text)
     return float(match.group(0)) if match else 0.0
 
