@@ -83,6 +83,10 @@ class ToolRegistry:
             close = sorted(n for n in self._tools if n.split(".")[-1] in name or name in n)
             raise NotFound(f"unknown tool '{name}'", tool=name, did_you_mean=close[:3]) from None
 
+    def peek(self, name: str) -> ToolSpec | None:
+        """Return a tool even if quarantined (for inspection and re-approval flows)."""
+        return self._tools.get(name)
+
     def __contains__(self, name: str) -> bool:
         return name in self._tools and name not in self._quarantined
 

@@ -157,14 +157,19 @@ class Executor:
                     [*running, cancel_wait], return_when=asyncio.FIRST_COMPLETED
                 )
                 for task in done:
-                    if task is cancel_wait:
-                        continue
-                    running.pop(task)
+                    if task is cancel_wait or running.pop(task, None) is None:
+                        continue  # already aborted after an earlier fatal result
                     outcome, payload = task.result()
                     if outcome == "fatal" and fatal is None:
                         fatal = payload
                         await self._abort(running)
                         running.clear()
+        except asyncio.CancelledError:
+            # The caller (worker shutdown, request timeout) abandoned this
+            # execution: stop every node task so no side effect happens after
+            # we return. The run stays resumable from its journal.
+            await asyncio.shield(self._abort(running))
+            raise
         finally:
             cancel_wait.cancel()
         await self._finish(fatal)

@@ -78,7 +78,7 @@ def validate_plan(
                 problems.append(f"node '{node.id}' depends on unknown node '{dep}'")
         node.deps = sorted(set(node.deps))
 
-        for tool_name, where in _tools_used(node):
+        for tool_name, tool_args, where in _tools_used(node):
             if tools is not None and tool_name not in tools:
                 problems.append(f"node '{node.id}' uses unknown tool '{tool_name}'{where}")
                 continue
@@ -86,7 +86,7 @@ def validate_plan(
                 problems.append(f"node '{node.id}' uses tool '{tool_name}' which is not granted")
                 continue
             if tools is not None:
-                problems.extend(_check_tool_args(node.id, tools, tool_name, _tool_args(node)))
+                problems.extend(_check_tool_args(node.id, tools, tool_name, tool_args))
         if isinstance(node, AgentNode):
             for pattern in node.tools:
                 if not _attenuates(pattern, grants):
@@ -168,24 +168,19 @@ def _find_cycle(plan: Plan) -> list[str] | None:
     return None
 
 
-def _tools_used(node: Any) -> list[tuple[str, str]]:
-    out: list[tuple[str, str]] = []
+def _tools_used(node: Any) -> list[tuple[str, dict[str, Any], str]]:
+    """(tool, args, location) for every tool a node may call, fallbacks included."""
+    out: list[tuple[str, dict[str, Any], str]] = []
+    primary_args: dict[str, Any] = {}
     if isinstance(node, ToolNode):
-        out.append((node.tool, ""))
+        primary_args = node.args
+        out.append((node.tool, node.args, ""))
     if isinstance(node, MapNode | LoopNode) and isinstance(node.body, ToolNode):
-        out.append((node.body.tool, " (in body)"))
+        out.append((node.body.tool, node.body.args, " (in body)"))
     for fb in getattr(node, "fallbacks", []):
         if fb.tool:
-            out.append((fb.tool, " (fallback)"))
+            out.append((fb.tool, fb.args if fb.args is not None else primary_args, " (fallback)"))
     return out
-
-
-def _tool_args(node: Any) -> dict[str, Any]:
-    if isinstance(node, ToolNode):
-        return node.args
-    if isinstance(node, MapNode | LoopNode) and isinstance(node.body, ToolNode):
-        return node.body.args
-    return {}
 
 
 def _check_tool_args(
