@@ -56,9 +56,9 @@ per node for sequential and parallel plans of trivial tools, replay speed, and
 fork reuse ratio. Uses `time.perf_counter` over several repetitions and reports
 mean / p50 / p95. Report: `results/runtime_overhead.md`.
 
-Measured (this machine, 4 CPUs): in-memory journal ~68k events/s, SQLite ~30k
-events/s; executor overhead ~0.4 to 0.7 ms per node; replay ~1.7k to 2.4k
-reused effects/s; forking a chain reuses all upstream effects when the last
+Measured (this machine, 4 CPUs, latest run): in-memory journal ~76k events/s,
+SQLite ~32k events/s; executor overhead ~0.35 to 0.7 ms per node; replay
+~2.1k to 2.5k reused effects/s; forking a chain reuses all upstream effects when the last
 node is patched and none when the first is patched.
 
 ### `retrieval_quality.py` (retrieval)

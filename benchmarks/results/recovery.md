@@ -1,7 +1,7 @@
 # Fault-injection recovery benchmark
 
-- Generated: 2026-10-02T15:35:18Z by `benchmarks/recovery.py`
-- Git commit: `3e74817bf39fec26a4dd3172f81d9de1c2e5a0bb` (uncommitted changes: True)
+- Generated: 2026-10-02T16:03:56Z by `benchmarks/recovery.py`
+- Git commit: `d7ded04eb3cf914538a483347338afedd7155054` (uncommitted changes: True)
 - Python 3.11.15 (CPython) on Linux-6.18.44-fc-v51-x86_64-with-glibc2.39, 4 CPUs
 - Repetitions per scenario: 5
 

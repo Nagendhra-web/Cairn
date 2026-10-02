@@ -334,7 +334,7 @@ All numbers below were produced by the scripts in [benchmarks/](benchmarks/) on 
 | policy on, operator rejects unexpected approvals | 0.0% (0/26) | 100.0% |
 | strict mode, no human available | 0.0% (0/26) | 100.0% |
 
-**Runtime overhead** (trivial tools, so this is scheduling, labeling, policy checks and journaling): about 0.4 to 0.5 ms per node; SQLite journal appends at roughly 30,000 events/s; see [runtime_overhead.md](benchmarks/results/runtime_overhead.md) for distributions, replay speed and fork reuse.
+**Runtime overhead** (trivial tools, so this is scheduling, labeling, policy checks and journaling): about 0.35 to 0.7 ms per node (mean, depending on plan shape); SQLite journal appends at roughly 32,000 events/s; see [runtime_overhead.md](benchmarks/results/runtime_overhead.md) for distributions, replay speed and fork reuse.
 
 **Recovery** with injected transient faults: every scenario that has a retry, fallback or default policy recovered in all repetitions; the no-policy controls failed as expected. [recovery.md](benchmarks/results/recovery.md)
 
