@@ -1,0 +1,17 @@
+# API plus two background workers sharing one SQLite journal (WAL mode) on a volume.
+# Set CAIRN_API_KEYS: with keys configured the API accepts non-loopback clients.
+services:
+  api:
+    build: .
+    ports: ["8787:8787"]
+    env_file: [.env]
+    volumes: [cairn-data:/data, ./workspace:/workspace]
+  worker:
+    build: .
+    command: ["cairn", "worker", "--concurrency", "4"]
+    env_file: [.env]
+    volumes: [cairn-data:/data, ./workspace:/workspace]
+    deploy:
+      replicas: 2
+volumes:
+  cairn-data:
